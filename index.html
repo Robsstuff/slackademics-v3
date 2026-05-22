@@ -136,7 +136,7 @@
       <!-- row 1: semester / turn / effort count -->
       <div class="game-hdr-row">
         <div class="round-lbl">Semester 1&thinsp;/&thinsp;8</div>
-        <div class="semester-name" style="font-size:10px;opacity:.7;"></div>
+        <div class="semester-name" id="semester-name"></div>
         <div class="turn-block">
           <div class="turn-sub">Playing</div>
           <div class="turn-name" id="turn-name">—</div>
@@ -156,6 +156,7 @@
         <span class="effort-bar-lbl">EXAM</span>
         <div class="effort-bar-track">
           <div class="effort-bar-fill" id="effort-bar-fill"></div>
+          <div class="effort-bar-skill" id="effort-bar-skill"></div>
         </div>
         <div class="effort-bar-nums">
           <span id="effort-bar-current">?</span><span class="effort-bar-sep">&thinsp;/&thinsp;</span><span id="effort-bar-target">20</span>
@@ -733,5 +734,13 @@ document.getElementById('start-game-btn').addEventListener('click', function(e) 
   init();
 </script>
 
+<script>
+function setLobbyDiff(btn) {
+  document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const d = parseFloat(btn.dataset.diff);
+  if (window.__slk) window.__slk.setDifficulty(d);
+}
+</script>
 </body>
 </html>

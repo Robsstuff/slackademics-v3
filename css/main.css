@@ -204,17 +204,28 @@
   flex: 1; height: 26px;
   border: 2.5px solid var(--border);
   border-radius: var(--r-sm);
+  display: flex; /* green + blue side by side */
   background: var(--surface);
   position: relative; overflow: hidden;
   box-shadow: var(--shad-s);
 }
 .effort-bar-fill {
-  position: absolute; left: 0; top: 0; bottom: 0;
+  height: 100%;
   background: var(--green);
   width: 0%;
+  flex-shrink: 0;
   transition: width .45s cubic-bezier(.25,.46,.45,.94), background .3s;
 }
 .effort-bar-fill.over-target { background: var(--accent); }
+/* Blue skill bonus segment — sits right after green fill */
+.effort-bar-skill {
+  height: 100%;
+  background: #3498db;
+  width: 0%;
+  flex-shrink: 0;
+  transition: width .45s cubic-bezier(.25,.46,.45,.94);
+  border-radius: 0 3px 3px 0;
+}
 .effort-bar-nums {
   font-family: var(--font-d); font-weight: 700; font-size: 18px;
   white-space: nowrap; min-width: 54px; text-align: right; line-height: 1;
@@ -616,7 +627,7 @@
   .game-hdr-row   { gap: 6px; }
   .round-lbl      { font-size: 10px; }
   .turn-name      { font-size: 14px; }
-  .semester-name  { display: none; }
+  .semester-name  { display: none; }  /* hidden on very small screens */
   .effort-bar-lbl { display: none; }   /* save space on small screens */
   .effort-bar-track { height: 20px; }
   .effort-bar-nums { font-size: 15px; min-width: 44px; }
@@ -838,4 +849,68 @@
 }
 .skill-bonus-tag.visible {
   display: flex;
+}
+
+/* ── Course code + name in header ──────────────────────── */
+.semester-name {
+  font-family: var(--font-d);
+  font-size: 11px;
+  line-height: 1.25;
+  flex: 1;
+  min-width: 0;
+}
+.course-code {
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.course-title {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 10px;
+  display: block;
+}
+
+/* ── Lobby difficulty selector ──────────────────────────── */
+.lobby-diff-row {
+  padding: 0 0 16px;
+}
+.diff-btns {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.diff-btn {
+  flex: 1;
+  min-width: 80px;
+  padding: 8px 10px;
+  font-family: var(--font-d);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  border: 2px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+}
+.diff-btn:hover { border-color: var(--fg); color: var(--fg); }
+.diff-btn.active {
+  border-color: var(--accent);
+  background: rgba(220,50,50,.12);
+  color: var(--accent);
+  box-shadow: var(--shad-s);
+}
+.diff-btn[data-diff="1.3"].active {
+  border-color: #f39c12;
+  background: rgba(243,156,18,.12);
+  color: #f39c12;
+}
+.diff-btn[data-diff="1.6"].active {
+  border-color: #9b59b6;
+  background: rgba(155,89,182,.12);
+  color: #9b59b6;
 }

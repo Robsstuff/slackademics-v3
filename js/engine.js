@@ -713,11 +713,11 @@ export function snitchTarget(state, { snitcherId, targetId }) {
 
   state.snitchChain.push({ snitcherId, targetId, tVal, sVal });
 
-  if (tVal > sVal) {
-    // Snitch succeeds — target takes fail, may continue chain
+  if (tVal >= sVal) {
+    // Snitch succeeds — target card >= snitcher's card
     addLog(state, {
       type: 'snitch',
-      text: `Snitch SUCCEEDS — ${target.name}(${tVal}) > ${snitcher.name}(${sVal}).`,
+      text: `Snitch SUCCEEDS — ${target.name}(${tVal}) >= ${snitcher.name}(${sVal}).`,
     });
     events.push(evt('SNITCH_SUCCESS', { snitcherId, targetId }));
     events.push(...applyIndividualFail(state, targetId));
@@ -730,7 +730,7 @@ export function snitchTarget(state, { snitcherId, targetId }) {
     // Snitch fails — snitcher loses cards
     addLog(state, {
       type: 'snitch',
-      text: `Snitch FAILS — ${target.name}(${tVal}) <= ${snitcher.name}(${sVal}).`,
+      text: `Snitch FAILS — ${target.name}(${tVal}) < ${snitcher.name}(${sVal}).`,
     });
     events.push(evt('SNITCH_FAIL', { snitcherId, targetId }));
     return _snitchFails(state, events, snitcherId);
@@ -834,7 +834,7 @@ export function semesterBreak(state) {
   state.activePlayerId  = state.projectLeaderId;
 
   // Update target
-  state.projectTarget = getTarget(state.semester, active.length);
+  state.projectTarget = getTarget(state.semester, active.length, state.difficulty || 1);
 
   // Reset per-semester player state
   for (const id of state.playerOrder) {

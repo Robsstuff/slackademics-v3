@@ -27,6 +27,7 @@ import {
   renderEffortCounter,
   buildEffortCardHTML,
   renderPlayerStatus,
+  setSkillBonus,
 }                                          from './renderer.js';
 
 // ── Deterministic pile rotations (matches renderer.js) ──
@@ -277,15 +278,20 @@ function _stepsCardPlayed(ev, state) {
   if (isProject) {
     steps.push({
       label: `CARD_FLY_PROJECT_${card.id}`,
-      duration: 0,
+      // Human: await the fly (0 duration, callback is async promise)
+      // AI:    fire-and-forget with 40ms stagger so cards appear simultaneous
+      duration: isHuman ? 0 : 40,
       payload: { ev, isHuman },
-      callback: async ({ ev, isHuman }) => {
+      callback: ({ ev, isHuman }) => {
         const { card, playerId } = ev;
         if (isHuman) {
           const el = document.querySelector(`#hand-fan [data-card-id="${card.id}"]`);
           if (el) el.classList.add('card-ghost');
+          return _animCardFly(card, playerId, true);  // awaited by queue
+        } else {
+          _animCardFly(card, playerId, false);  // fire-and-forget
+          // queue moves to next step after 40ms stagger
         }
-        await _animCardFly(card, playerId, isHuman);
       },
     });
   } else {
@@ -320,7 +326,7 @@ function _stepsCardPlayed(ev, state) {
 function _stepTurnAdvanced(ev, state) {
   return {
     label: 'TURN_ADVANCED',
-    duration: 140,
+    duration: 0,
     payload: { state, playerId: ev.playerId },
     callback({ state, playerId }) {
       renderGameHeader(state);
@@ -356,7 +362,8 @@ function _stepRevealStart(ev, state) {
         if (pip) pip.classList.add('unknown');
         pipVal.textContent = '?';
       }
-      // Clear any leftover skill-bonus tag from prior semester
+      // Clear skill bonus from prior semester
+      setSkillBonus(0);
       const tag = document.getElementById('skill-bonus-tag');
       if (tag) tag.classList.remove('visible');
     },
@@ -405,12 +412,14 @@ function _stepEffortUpdated(ev, state) {
     duration: 520,
     payload: { total: ev.total, skillBonus: ev.skillBonus || 0, skillName: ev.skillName || null },
     callback({ total, skillBonus, skillName }) {
+      // Set skill bonus so renderer can split the bar green/blue
+      setSkillBonus(skillBonus);
       _animCounter(0, total, 420);
-      // Show or hide skill-bonus tag
+      // Also update the text tag below the bar
       const tag = document.getElementById('skill-bonus-tag');
       if (tag) {
         if (skillBonus > 0 && skillName) {
-          tag.textContent = '+' + skillBonus + ' from ' + skillName;
+          tag.textContent = '+' + skillBonus + ' effort from ' + skillName;
           tag.classList.add('visible');
         } else {
           tag.classList.remove('visible');
@@ -554,9 +563,9 @@ function _stepIndividualFail(ev, state) {
 function _stepExtraCredit(ev, state) {
   return {
     label: 'EXTRA_CREDIT',
-    duration: 600,
-    payload: { playerId: ev.playerId },
-    callback({ playerId }) {
+    duration: 1100,
+    payload: { playerId: ev.playerId, state },
+    callback({ playerId, state }) {
       const slot = document.getElementById('slot-' + playerId);
       if (!slot) return;
       let credits = slot.querySelector('.slot-credits');
@@ -570,6 +579,10 @@ function _stepExtraCredit(ev, state) {
       star.style.display = 'inline-block';
       star.classList.add('anim-scale-in');
       credits.appendChild(star);
+      // Banner showing who earned it
+      const p = state.players[playerId];
+      _showBanner('pass', (p ? p.name : '?') + ' earns Extra Credit! ★');
+      setTimeout(() => _removeBanner(), 900);
     },
   };
 }

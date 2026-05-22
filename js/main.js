@@ -26,8 +26,9 @@ import {
 import { sleep, uid }                 from './utils.js';
 
 // ── Module globals ─────────────────────────────────────────
-let _state   = null;
-let _humanId = null;
+let _state          = null;
+let _humanId        = null;
+let _lobbyDifficulty = 1.0;  // set from lobby difficulty buttons
 
 // Staged pair for human player (UI state, not game state)
 let _stagedProject = null;  // card id
@@ -63,7 +64,7 @@ export function startGame(lobbyPlayers) {
   }));
 
   _humanId = configs.find(c => c.isHuman)?.id ?? configs[0].id;
-  _state   = createState(configs);
+  _state   = createState(configs, _lobbyDifficulty);
   _stagedProject = null;
   _stagedParty   = null;
 
@@ -116,8 +117,9 @@ function _advance() {
   // Human's turn — leave it to them
   if (active.isHuman) return;
 
-  // AI turn
-  setTimeout(() => _runAITurn(activeId), AI_THINK_DELAY);
+  // AI turn — instant in PLAYING phase (cards fly together after human plays)
+  const playDelay = _state.phase === 'PLAYING' ? 0 : AI_THINK_DELAY;
+  setTimeout(() => _runAITurn(activeId), playDelay);
 }
 
 function _afterQueueDrain() {
@@ -260,15 +262,15 @@ function _runAIVotingCascade() {
 }
 
 // ─────────────────────────────────────────────────────────
-//  HUMAN PLAY PAIR  (one-click: clicked card goes to Project Pile, partner to Party)
+//  HUMAN PLAY PAIR  (one-click → cascades all remaining AI simultaneously)
 // ─────────────────────────────────────────────────────────
 function _onHumanCardClick(partyCardId, projectCardId) {
   if (!_state || queueBusy()) return;
   if (_state.phase !== 'PLAYING' || _state.activePlayerId !== _humanId) return;
 
-  let events;
+  let allEvents;
   try {
-    events = playPair(_state, {
+    allEvents = playPair(_state, {
       playerId:      _humanId,
       projectCardId,
       partyCardId,
@@ -280,7 +282,27 @@ function _onHumanCardClick(partyCardId, projectCardId) {
       `<span class="sel-desc" style="color:var(--accent)">${err.message}</span>`;
     return;
   }
-  _dispatchEvents(events);
+
+  // Cascade remaining AI players' plays so all cards fly simultaneously
+  while (_state.phase === 'PLAYING') {
+    const nextId = _state.activePlayerId;
+    const nextP  = nextId ? _state.players[nextId] : null;
+    if (!nextP || nextP.isHuman || nextP.isExpelled) break;
+    const action = getAIAction(_state, nextId);
+    if (action?.type !== 'PLAY_PAIR') break;
+    try {
+      allEvents.push(...playPair(_state, {
+        playerId:      nextId,
+        projectCardId: action.projectCardId,
+        partyCardId:   action.partyCardId,
+      }));
+    } catch (err) {
+      console.warn('[main] AI cascade error:', err.message);
+      break;
+    }
+  }
+
+  _dispatchEvents(allEvents);
 }
 
 //  HUMAN CONTINUE / REVEAL / BREAK
@@ -582,4 +604,4 @@ function _hideAIThinking() {
   if (el) el.style.display = 'none';
 }
 
-window.__slk = { startGame, openBreakDrawOverlay };
+window.__slk = { startGame, openBreakDrawOverlay, setDifficulty(d) { _lobbyDifficulty = d; } };

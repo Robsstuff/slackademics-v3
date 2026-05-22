@@ -4,7 +4,7 @@
    ===================================================== */
 'use strict';
 
-import { EFFORT_IMGS, totalFails } from './state.js';
+import { EFFORT_IMGS, COURSE_NAMES, SEMESTER_NAMES, totalFails } from './state.js';
 
 // ── Card image base paths ─────────────────────────────────
 const EFFORT_BASE    = './cards/effort/';
@@ -13,7 +13,9 @@ const OTHER_BASE     = '../CARDS/Other Cards/';
 
 // ── Module-level state ────────────────────────────────────
 let _projectTarget = 20;   // updated from state on every renderGameHeader
-let _cardClickCb   = null; // set by main.js for one-click card play
+let _cardClickCb      = null; // set by main.js for one-click card play
+let _currentSkillBonus = 0;  // set when skill resolves; cleared each semester
+export function setSkillBonus(n) { _currentSkillBonus = n; }
 
 /** Set the callback invoked when human clicks a card in their hand.
  *  Signature: onCardClick(partyCardId, projectCardId) */
@@ -88,20 +90,28 @@ export function buildEffortCardHTML(card) { return effortCardHTML(card); }
 //  GAME HEADER
 // ── Effort bar helper (drives the prominent bar row in header) ──
 function _updateEffortBar(total, hidden) {
-  const fill = $('effort-bar-fill');
-  const cur  = $('effort-bar-current');
-  const tgt  = $('effort-bar-target');
+  const fill      = $('effort-bar-fill');
+  const skillFill = $('effort-bar-skill');
+  const cur       = $('effort-bar-current');
+  const tgt       = $('effort-bar-target');
   if (tgt) tgt.textContent = _projectTarget;
   if (hidden) {
-    if (fill) { fill.style.width = '0%'; fill.classList.remove('over-target'); }
-    if (cur)  cur.textContent = '?';
+    if (fill)      { fill.style.width = '0%'; fill.classList.remove('over-target'); }
+    if (skillFill) skillFill.style.width = '0%';
+    if (cur)       cur.textContent = '?';
     return;
   }
-  if (cur)  cur.textContent = total;
+  if (cur) cur.textContent = total;
   if (fill) {
-    const pct = _projectTarget > 0 ? Math.min(total / _projectTarget * 100, 100) : 0;
-    fill.style.width = pct + '%';
+    const bonus    = _currentSkillBonus;
+    const base     = total - bonus;
+    const basePct  = _projectTarget > 0 ? Math.min(base  / _projectTarget * 100, 100) : 0;
+    const bonusPct = _projectTarget > 0 && bonus > 0
+      ? Math.min(bonus / _projectTarget * 100, 100 - basePct)
+      : 0;
+    fill.style.width = basePct + '%';
     fill.classList.toggle('over-target', total > _projectTarget);
+    if (skillFill) skillFill.style.width = bonusPct + '%';
   }
 }
 
@@ -149,7 +159,13 @@ export function renderGameHeader(state) {
   if (pool) pool.textContent = state.effortPool.length;
 
   const semName = document.querySelector('.semester-name');
-  if (semName) semName.textContent = state.semesterName ?? '';
+  if (semName) {
+    const semIdx   = Math.max(0, Math.min(state.semester - 1, 7));
+    const fullName = COURSE_NAMES[semIdx] ?? '';
+    semName.innerHTML =
+      '<span class="course-code">' + esc(state.semesterName ?? '') + '</span>' +
+      ' <span class="course-title">' + esc(fullName) + '</span>';
+  }
 }
 
 export function renderEffortCounter(total) {

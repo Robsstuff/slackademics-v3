@@ -62,10 +62,22 @@ export const SEMESTER_NAMES = [
   'MATH 3305','PHYS 3406','CHEM 4407','ENGG 4508',
 ];
 
-export function getTarget(semester, activeCount) {
+export const COURSE_NAMES = [
+  'Intro to Academic Writing',
+  'Foundations of Visual Arts',
+  'World History Survey',
+  'Gender Studies',
+  'Advanced Calculus',
+  'Quantum Mechanics',
+  'Organic Chemistry',
+  'Engineering Capstone',
+];
+
+export function getTarget(semester, activeCount, difficulty = 1) {
   const semIdx = Math.max(0, Math.min(semester - 1, 7));
   const plrIdx = Math.max(0, Math.min(activeCount - 3, 5));
-  return PROJECT_TARGETS[semIdx][plrIdx];
+  const base   = PROJECT_TARGETS[semIdx][plrIdx];
+  return Math.ceil(base * difficulty);
 }
 
 // ── Leadership skill cards ────────────────────────────────
@@ -157,7 +169,7 @@ function makePlayer(cfg) {
 }
 
 // ── createState ───────────────────────────────────────────
-export function createState(playerConfigs) {
+export function createState(playerConfigs, difficulty = 1) {
   const playerOrder = playerConfigs.map(p => p.id);
   const players = {};
 
@@ -183,7 +195,8 @@ export function createState(playerConfigs) {
     semesterName:   SEMESTER_NAMES[0],
 
     // ── Project ───────────────────────────────────────────
-    projectTarget:     getTarget(1, activeCount),
+    difficulty,
+    projectTarget:     getTarget(1, activeCount, difficulty),
     targetBonus:       0,   // can be negative (Curve the Grade)
     nextTargetPenalty: 0,   // applied next semester
     effortPool,
