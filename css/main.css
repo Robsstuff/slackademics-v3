@@ -180,11 +180,46 @@
 /* ── Game top bar ── */
 .game-hdr {
   position: sticky; top: 0; z-index: 50;
-  padding: 9px 16px;
+  padding: 9px 16px 10px;
   border-bottom: 2.5px solid var(--border);
   background: var(--bg);
+  display: flex; flex-direction: column; gap: 8px;
+}
+
+/* top info row inside header */
+.game-hdr-row {
   display: flex; align-items: center; gap: 10px;
 }
+
+/* ── Prominent exam effort bar (second row in header) ── */
+.effort-bar-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.effort-bar-lbl {
+  font-family: var(--font-d); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .10em; color: var(--muted);
+  white-space: nowrap; width: 36px;
+}
+.effort-bar-track {
+  flex: 1; height: 26px;
+  border: 2.5px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  position: relative; overflow: hidden;
+  box-shadow: var(--shad-s);
+}
+.effort-bar-fill {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: var(--green);
+  width: 0%;
+  transition: width .45s cubic-bezier(.25,.46,.45,.94), background .3s;
+}
+.effort-bar-fill.over-target { background: var(--accent); }
+.effort-bar-nums {
+  font-family: var(--font-d); font-weight: 700; font-size: 18px;
+  white-space: nowrap; min-width: 54px; text-align: right; line-height: 1;
+}
+.effort-bar-sep { font-weight: 400; color: var(--muted); font-size: 14px; }
 .round-lbl {
   font-family: var(--font-d); font-size: 12px; font-weight: 600;
   text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
@@ -564,13 +599,14 @@
 @media (max-width: 639px) {
 
   /* ── Compact game header ── */
-  .game-hdr  { padding: 6px 10px; gap: 6px; }
-  .round-lbl { font-size: 10px; }
-  .turn-name { font-size: 15px; }
-  .semester-name { display: none; }
-  .effort-pip     { padding: 3px 8px; }
-  .effort-pip-val { font-size: 18px; }
-  .effort-pip-lbl { font-size: 8px; }
+  .game-hdr       { padding: 6px 10px 8px; gap: 5px; }
+  .game-hdr-row   { gap: 6px; }
+  .round-lbl      { font-size: 10px; }
+  .turn-name      { font-size: 14px; }
+  .semester-name  { display: none; }
+  .effort-bar-lbl { display: none; }   /* save space on small screens */
+  .effort-bar-track { height: 20px; }
+  .effort-bar-nums { font-size: 15px; min-width: 44px; }
 
   /* ── Project pile ── */
   .pile-zone { padding: 10px 12px 8px; }

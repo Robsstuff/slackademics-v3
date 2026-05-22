@@ -21,6 +21,7 @@ import {
 }                                     from './animQueue.js';
 import {
   renderAll, renderScoreboard, renderLog, getSelectedCardId,
+  setCardClickCallback,
 }                                     from './renderer.js';
 import { sleep, uid }                 from './utils.js';
 
@@ -38,8 +39,6 @@ const AI_THINK_DELAY = 700;
 //  INIT
 // ─────────────────────────────────────────────────────────
 export function init() {
-  _on('btn-project',      () => _humanStageProject());
-  _on('btn-party',        () => _humanStageParty());
   _on('btn-continue',     () => _handleContinue());
   _on('btn-let-it-ride',  () => _humanLetItRide());
   _on('btn-skill-faceup', () => _humanUseSkill('faceup'));
@@ -71,6 +70,7 @@ export function startGame(lobbyPlayers) {
 
   queueSetHuman(_humanId);
   queueSetOnDone(_afterQueueDrain);
+  setCardClickCallback(_onHumanCardClick);
 
   const logList = document.getElementById('log-list');
   if (logList) { logList.innerHTML = ''; logList.dataset.logCount = '0'; }
@@ -94,9 +94,8 @@ function _advance() {
       return;
 
     case 'REVEAL': {
-      const human = _humanId ? _state.players[_humanId] : null;
-      if (human && !human.isExpelled) return;   // human clicks Continue
-      setTimeout(() => _dispatchEvents(revealPhase(_state)), AI_THINK_DELAY);
+      // Auto-reveal after a short pause so players can see the pile
+      setTimeout(() => _dispatchEvents(revealPhase(_state)), 900);
       return;
     }
 
@@ -262,113 +261,29 @@ function _runAIVotingCascade() {
 }
 
 // ─────────────────────────────────────────────────────────
-//  HUMAN PLAY PAIR
+//  HUMAN PLAY PAIR  (one-click: clicked card goes to Party Pile, partner to Project)
 // ─────────────────────────────────────────────────────────
-
-function _humanStageProject() {
+function _onHumanCardClick(partyCardId, projectCardId) {
   if (!_state || queueBusy()) return;
   if (_state.phase !== 'PLAYING' || _state.activePlayerId !== _humanId) return;
 
-  const cardId = getSelectedCardId();
-  if (!cardId || cardId === _stagedParty) return;
-
-  _stagedProject = cardId;
-  _trySubmitPair();
-}
-
-function _humanStageParty() {
-  if (!_state || queueBusy()) return;
-  if (_state.phase !== 'PLAYING' || _state.activePlayerId !== _humanId) return;
-
-  const cardId = getSelectedCardId();
-  if (!cardId || cardId === _stagedProject) return;
-
-  _stagedParty = cardId;
-  _trySubmitPair();
-}
-
-function _trySubmitPair() {
-  if (!_stagedProject || !_stagedParty) {
-    _updateStagedDisplay();
-    return;
-  }
-
-  const player   = _state.players[_humanId];
-  const projCard = player.hand.find(c => c.id === _stagedProject);
-  const partCard = player.hand.find(c => c.id === _stagedParty);
-
-  if (!projCard || !partCard) {
-    _stagedProject = null;
-    _stagedParty   = null;
-    _updateStagedDisplay();
-    return;
-  }
-
-  // Validate pair
-  const valid =
-    (projCard.type === 'copy' && partCard.type === 'copy') ||
-    (projCard.type === 'effort' && partCard.type === 'effort' &&
-     projCard.value + partCard.value === 8);
-
-  if (!valid) {
-    _showPairError(projCard, partCard);
-    // Keep staged project, reset party so user can pick again
-    _stagedParty = null;
-    _updateStagedDisplay();
-    return;
-  }
-
-  // Submit pair
   let events;
   try {
     events = playPair(_state, {
       playerId:      _humanId,
-      projectCardId: _stagedProject,
-      partyCardId:   _stagedParty,
+      projectCardId,
+      partyCardId,
     });
   } catch (err) {
     console.warn('[main] playPair error:', err.message);
-    _stagedProject = null;
-    _stagedParty   = null;
+    const strip = document.getElementById('sel-strip');
+    if (strip) strip.innerHTML =
+      `<span class="sel-desc" style="color:var(--accent)">${err.message}</span>`;
     return;
   }
-
-  _stagedProject = null;
-  _stagedParty   = null;
   _dispatchEvents(events);
 }
 
-function _updateStagedDisplay() {
-  const strip = document.getElementById('sel-strip');
-  // Clear any previous pair-group staging highlights
-  document.querySelectorAll('.pair-group').forEach(g => g.classList.remove('has-staged'));
-
-  if (!strip) return;
-  if (_stagedProject && !_stagedParty) {
-    const player = _state?.players[_humanId];
-    const c = player?.hand.find(h => h.id === _stagedProject);
-    strip.innerHTML = c
-      ? `<span class="sel-name">Project: ${c.name} (${c.value})</span>` +
-        `<span class="sel-desc">Now select the other card for your Party Pile</span>`
-      : '';
-    // Highlight the pair group containing the staged card
-    const stagedEl = document.querySelector(`[data-card-id="${_stagedProject}"]`);
-    const group = stagedEl?.closest('.pair-group');
-    if (group) group.classList.add('has-staged');
-  }
-}
-
-function _showPairError(c1, c2) {
-  const strip = document.getElementById('sel-strip');
-  if (strip) {
-    const s = c1.type === 'copy' || c2.type === 'copy'
-      ? 'Copy cards must be played as a Copy+Copy pair.'
-      : `${c1.value} + ${c2.value} = ${c1.value + c2.value} (must equal 8)`;
-    strip.innerHTML = `<span class="sel-desc" style="color:var(--accent)">Invalid pair — ${s}</span>`;
-  }
-}
-
-// ─────────────────────────────────────────────────────────
 //  HUMAN CONTINUE / REVEAL / BREAK
 // ─────────────────────────────────────────────────────────
 function _handleContinue() {

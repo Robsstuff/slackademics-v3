@@ -11,6 +11,14 @@ const EFFORT_BASE    = '../CARDS/Effort Cards/';
 const LEADERSHIP_BASE = '../CARDS/Leadership Cards/';
 const OTHER_BASE     = '../CARDS/Other Cards/';
 
+// ── Module-level state ────────────────────────────────────
+let _projectTarget = 20;   // updated from state on every renderGameHeader
+let _cardClickCb   = null; // set by main.js for one-click card play
+
+/** Set the callback invoked when human clicks a card in their hand.
+ *  Signature: onCardClick(partyCardId, projectCardId) */
+export function setCardClickCallback(fn) { _cardClickCb = fn; }
+
 // ── Phase display ─────────────────────────────────────────
 const PHASE_LABEL = {
   PLAYING:    'Playing Cards',
@@ -64,33 +72,42 @@ function failPipsHTML(count, limit = 5) {
 
 const $ = id => document.getElementById(id);
 
-// ── Build effort card HTML (with real artwork) ────────────
+// ── Build effort card HTML — clean card photo, no overlay ──
 function effortCardHTML(card) {
-  const val  = card.type === 'copy' ? 'X2' : esc(String(card.value));
-  const name = esc(card.name ?? 'X2 Copy');
+  const name    = esc(card.name ?? (card.type === 'copy' ? 'X2 Copy' : `Effort ${card.value}`));
   const imgFile = EFFORT_IMGS[card.value] ?? 'Effort 4.jpg';
   const imgSrc  = EFFORT_BASE + imgFile;
-
-  // Use card artwork as background image with value overlay
-  return (
-    `<div class="c-hdr">` +
-      `<span>${card.type === 'copy' ? 'Copy' : 'Effort'}</span>` +
-      `<span class="c-badge">${val}</span>` +
-    `</div>` +
-    `<div class="c-art">` +
-      `<img src="${imgSrc}" alt="${name}" style="width:100%;height:100%;object-fit:cover;" />` +
-      `<div class="c-num">${val}</div>` +
-    `</div>` +
-    `<div class="c-foot"><div class="c-foot-txt">${name}</div></div>`
-  );
+  // Just the physical card artwork, full-bleed inside the card border
+  return `<img src="${imgSrc}" alt="${name}" `
+       + `style="width:100%;height:100%;object-fit:cover;display:block;" />`;
 }
 
 export function buildEffortCardHTML(card) { return effortCardHTML(card); }
 
 // ─────────────────────────────────────────────────────────
 //  GAME HEADER
-// ─────────────────────────────────────────────────────────
+// ── Effort bar helper (drives the prominent bar row in header) ──
+function _updateEffortBar(total, hidden) {
+  const fill = $('effort-bar-fill');
+  const cur  = $('effort-bar-current');
+  const tgt  = $('effort-bar-target');
+  if (tgt) tgt.textContent = _projectTarget;
+  if (hidden) {
+    if (fill) { fill.style.width = '0%'; fill.classList.remove('over-target'); }
+    if (cur)  cur.textContent = '?';
+    return;
+  }
+  if (cur)  cur.textContent = total;
+  if (fill) {
+    const pct = _projectTarget > 0 ? Math.min(total / _projectTarget * 100, 100) : 0;
+    fill.style.width = pct + '%';
+    fill.classList.toggle('over-target', total > _projectTarget);
+  }
+}
+
 export function renderGameHeader(state) {
+  _projectTarget = state.projectTarget;
+
   const roundLbl = document.querySelector('.round-lbl');
   if (roundLbl) roundLbl.textContent = `Semester ${state.semester} / ${state.totalSemesters}`;
 
@@ -106,21 +123,23 @@ export function renderGameHeader(state) {
   if (turnName) turnName.textContent = activePl ? esc(activePl.name) : '—';
   if (turnSub)  turnSub.textContent  = PHASE_SUB[state.phase] ?? state.phase;
 
-  // Effort pip
+  // Hidden effort-pip span (kept for animQueue compat)
   const pip    = $('effort-pip');
   const pipVal = $('effort-val');
-  if (pip && pipVal) {
-    if (state.phase === 'PLAYING') {
-      pip.classList.add('unknown');
-      pipVal.textContent = '?';
-    } else {
-      const { computePileTotal } = window.__slkEngine || {};
-      const total = state.projectPile.reduce(
-        (s, c) => s + (c.revealed && c.type === 'effort' ? c.value : 0), 0
-      );
-      pip.classList.remove('unknown');
-      pipVal.textContent = total;
-    }
+  const isPlaying = state.phase === 'PLAYING';
+  if (pip)    pip.classList.toggle('unknown', isPlaying);
+  if (pipVal) pipVal.textContent = isPlaying ? '?' : String(
+    state.projectPile.reduce((s, c) => s + (c.revealed && c.type === 'effort' ? c.value : 0), 0)
+  );
+
+  // Prominent effort bar
+  if (isPlaying) {
+    _updateEffortBar(0, true);
+  } else {
+    const total = state.projectPile.reduce(
+      (s, c) => s + (c.revealed && c.type === 'effort' ? c.value : 0), 0
+    );
+    _updateEffortBar(total, false);
   }
 
   const tgt = document.querySelector('.pile-target strong');
@@ -129,7 +148,6 @@ export function renderGameHeader(state) {
   const pool = document.querySelector('.pool-badge strong');
   if (pool) pool.textContent = state.effortPool.length;
 
-  // Semester subject name
   const semName = document.querySelector('.semester-name');
   if (semName) semName.textContent = state.semesterName ?? '';
 }
@@ -137,9 +155,9 @@ export function renderGameHeader(state) {
 export function renderEffortCounter(total) {
   const pip    = $('effort-pip');
   const pipVal = $('effort-val');
-  if (!pip || !pipVal) return;
-  pip.classList.remove('unknown');
-  pipVal.textContent = total;
+  if (pip)    pip.classList.remove('unknown');
+  if (pipVal) pipVal.textContent = total;
+  _updateEffortBar(total, false);
 }
 
 // ─────────────────────────────────────────────────────────
@@ -270,7 +288,9 @@ export function renderHandFan(state, humanId) {
   const player = state.players[humanId];
   if (!player) { fan.innerHTML = ''; return; }
 
-  const isMyTurn = state.phase === 'PLAYING' && state.activePlayerId === humanId && !player.playedPair;
+  const isMyTurn = state.phase === 'PLAYING'
+    && state.activePlayerId === humanId
+    && !player.playedPair;
 
   fan.dataset.isMyTurn     = isMyTurn ? '1' : '0';
   fan.dataset.selectedCard = '';
@@ -278,7 +298,7 @@ export function renderHandFan(state, humanId) {
 
   const strip = $('sel-strip');
   if (strip) strip.innerHTML = isMyTurn
-    ? '<span class="sel-desc">Pick a card, then choose To Project or To Party Pile.</span>'
+    ? '<span class="sel-desc">Tap the card you want to <strong>hide</strong> — it goes to your Party Pile, its partner to the Project.</span>'
     : '<span class="sel-desc">Waiting for your turn...</span>';
 
   const pairGroups = buildPairGroups(player.hand);
@@ -294,29 +314,19 @@ export function renderHandFan(state, humanId) {
       el.dataset.cardId = card.id;
       el.innerHTML      = effortCardHTML(card);
 
-      if (!isMyTurn) el.classList.add('no-interact');
-
-      el.addEventListener('click', () => {
-        if (fan.dataset.isMyTurn !== '1') return;
-        // deselect everything
-        fan.querySelectorAll('.card').forEach(c => c.classList.remove('sel'));
-        fan.querySelectorAll('.pair-group').forEach(g => g.classList.remove('active-group'));
-        el.classList.add('sel');
-        groupEl.classList.add('active-group');
-        fan.dataset.selectedCard = card.id;
-
-        if (strip) {
-          const valStr = card.type === 'copy' ? 'X2' : String(card.value);
-          strip.innerHTML =
-            `<span class="sel-name">${esc(card.name)}</span>` +
-            `<span class="sel-val">Value:&thinsp;${valStr}</span>`;
-        }
-
-        const btnProject = $('btn-project');
-        const btnParty   = $('btn-party');
-        if (btnProject) btnProject.disabled = false;
-        if (btnParty)   btnParty.disabled   = false;
-      });
+      if (!isMyTurn) {
+        el.classList.add('no-interact');
+      } else if (_cardClickCb && pair.length >= 2) {
+        // One-click: clicked card goes to Party Pile, partner goes to Project
+        const partnerCard = pair.find(c => c.id !== card.id);
+        el.addEventListener('click', () => {
+          if (fan.dataset.isMyTurn !== '1') return;
+          _cardClickCb(card.id, partnerCard.id);
+        });
+      } else {
+        // Unpaired card (shouldn't happen) — not clickable
+        el.classList.add('no-interact');
+      }
 
       groupEl.appendChild(el);
     }
@@ -334,9 +344,7 @@ export function renderHandFan(state, humanId) {
   if (section) section.classList.toggle('hand-waiting', !isMyTurn);
 }
 
-// ─────────────────────────────────────────────────────────
-//  LEADERSHIP SKILL DISPLAY
-// ─────────────────────────────────────────────────────────
+
 export function renderLeadershipSkills(state) {
   const skillBar = $('skill-bar');
   if (!skillBar) return;
@@ -414,14 +422,8 @@ export function renderControlBar(state, humanId) {
   switch (state.phase) {
 
     case 'PLAYING': {
-      if (isHumanTurn && !player.playedPair) {
-        show('btn-project', false, 'To Project');
-        show('btn-party',   false, 'To Party Pile');
-      } else if (!isHumanTurn) {
-        const activePl = state.activePlayerId ? state.players[state.activePlayerId] : null;
-        show('btn-continue', false,
-          activePl ? `${esc(activePl.name)} is thinking…` : 'Continue →');
-      }
+      // One-click card play handles human turns — no action-bar buttons needed.
+      // AI turns auto-advance after queue drains — no continue button needed.
       break;
     }
 

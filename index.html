@@ -132,19 +132,36 @@
 
     <!-- sticky top bar -->
     <div class="game-hdr">
-      <div class="round-lbl">Semester 3&thinsp;/&thinsp;8</div>
-      <div class="semester-name" style="font-size:11px;opacity:.7;text-align:center;"></div>
-      <div class="turn-block">
-        <div class="turn-sub">Playing</div>
-        <div class="turn-name" id="turn-name">Jordan</div>
-        <div id="ai-thinking" class="ai-thinking" style="display:none">
-          <span></span><span></span><span></span>
+
+      <!-- row 1: semester / turn / effort count -->
+      <div class="game-hdr-row">
+        <div class="round-lbl">Semester 1&thinsp;/&thinsp;8</div>
+        <div class="semester-name" style="font-size:10px;opacity:.7;"></div>
+        <div class="turn-block">
+          <div class="turn-sub">Playing</div>
+          <div class="turn-name" id="turn-name">—</div>
+          <div id="ai-thinking" class="ai-thinking" style="display:none">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+        <!-- hidden pill kept for JS class-toggle compat -->
+        <div class="effort-pip unknown" id="effort-pip" style="display:none">
+          <div class="effort-pip-lbl">Effort</div>
+          <div class="effort-pip-val" id="effort-val">?</div>
         </div>
       </div>
-      <div class="effort-pip unknown" id="effort-pip">
-        <div class="effort-pip-lbl">Effort</div>
-        <div class="effort-pip-val" id="effort-val">?</div>
+
+      <!-- row 2: prominent exam effort bar -->
+      <div class="effort-bar-row">
+        <span class="effort-bar-lbl">EXAM</span>
+        <div class="effort-bar-track">
+          <div class="effort-bar-fill" id="effort-bar-fill"></div>
+        </div>
+        <div class="effort-bar-nums">
+          <span id="effort-bar-current">?</span><span class="effort-bar-sep">&thinsp;/&thinsp;</span><span id="effort-bar-target">20</span>
+        </div>
       </div>
+
     </div>
 
     <!-- scrollable body -->
