@@ -245,7 +245,13 @@ function resolveOutcome(state, events) {
   const total = baseTotal + skillBonus + complainBonus;
 
   const effectiveTarget = state.projectTarget + (state.targetBonus || 0);
-  events.push(evt('EFFORT_UPDATED', { total, target: effectiveTarget }));
+  const totalSkillBonus = skillBonus + complainBonus;
+  events.push(evt('EFFORT_UPDATED', {
+    total,
+    target:     effectiveTarget,
+    skillBonus: totalSkillBonus,
+    skillName:  state.chosenSkill?.name ?? null,
+  }));
 
   const passed = total >= effectiveTarget;
 

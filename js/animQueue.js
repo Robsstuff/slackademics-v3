@@ -356,6 +356,9 @@ function _stepRevealStart(ev, state) {
         if (pip) pip.classList.add('unknown');
         pipVal.textContent = '?';
       }
+      // Clear any leftover skill-bonus tag from prior semester
+      const tag = document.getElementById('skill-bonus-tag');
+      if (tag) tag.classList.remove('visible');
     },
   };
 }
@@ -399,10 +402,20 @@ function _stepsCardRevealed(ev, state) {
 function _stepEffortUpdated(ev, state) {
   return {
     label: 'EFFORT_UPDATED',
-    duration: 420,
-    payload: { total: ev.total },
-    callback({ total }) {
-      _animCounter(total - ev.total > 8 ? total - ev.total : 0, total, 380);
+    duration: 520,
+    payload: { total: ev.total, skillBonus: ev.skillBonus || 0, skillName: ev.skillName || null },
+    callback({ total, skillBonus, skillName }) {
+      _animCounter(0, total, 420);
+      // Show or hide skill-bonus tag
+      const tag = document.getElementById('skill-bonus-tag');
+      if (tag) {
+        if (skillBonus > 0 && skillName) {
+          tag.textContent = '+' + skillBonus + ' from ' + skillName;
+          tag.classList.add('visible');
+        } else {
+          tag.classList.remove('visible');
+        }
+      }
     },
   };
 }

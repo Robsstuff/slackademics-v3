@@ -329,10 +329,23 @@
   display: flex; gap: 3px; align-items: center;
 }
 .fail-pip {
-  width: 9px; height: 9px; border-radius: 50%;
+  width: 13px; height: 15px; border-radius: 3px;
   border: 1.5px solid var(--border); background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
 }
-.fail-pip.filled { background: var(--accent); }
+.fail-pip.filled {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.fail-pip.filled::after {
+  content: 'F';
+  font-family: var(--font-d);
+  font-size: 10px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1;
+}
 .expelled-stamp {
   position: absolute; inset: 0; border-radius: var(--r-md);
   background: rgba(255,255,255,.65);
@@ -342,7 +355,7 @@
 }
 /* extra credit star row inside player slot */
 .slot-credits {
-  font-size: 11px; color: var(--amber-dk);
+  font-size: 11px; color: #2ecc71;
   letter-spacing: -.03em; line-height: 1;
 }
 
@@ -802,4 +815,27 @@
   font-weight: 700;
   color: var(--gold, #d4af37);
   line-height: 1;
+}
+
+/* ── Skill effort bonus tag ────────────────────────────── */
+.skill-bonus-tag {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  margin: 4px auto 0;
+  background: rgba(52, 152, 219, 0.15);
+  border: 1.5px solid rgba(52, 152, 219, 0.5);
+  border-radius: 20px;
+  font-family: var(--font-d);
+  font-size: 12px;
+  font-weight: 700;
+  color: #5dade2;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  width: fit-content;
+  max-width: 100%;
+}
+.skill-bonus-tag.visible {
+  display: flex;
 }
