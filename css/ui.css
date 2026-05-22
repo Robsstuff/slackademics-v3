@@ -1,0 +1,221 @@
+/* =====================================================
+   SLACKADEMICS — UI Components
+   Buttons, phase badges, fail pips, overlays, log
+   ===================================================== */
+
+/* ── Buttons ──────────────────────────────────────────── */
+
+/* Primary — red fill */
+.btn-p {
+  font-family: var(--font-d); font-weight: 700; font-size: 18px;
+  letter-spacing: .05em; text-transform: uppercase;
+  background: var(--accent); color: #fff;
+  border: 2.5px solid var(--border); border-radius: 8px;
+  padding: 12px 24px; cursor: pointer;
+  box-shadow: var(--shad);
+  transition: transform .10s, box-shadow .10s;
+  white-space: nowrap; outline: none;
+}
+.btn-p:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shad-s);
+}
+.btn-p:disabled { opacity: .38; cursor: not-allowed; }
+
+/* Secondary — paper fill, ink border */
+.btn-s {
+  font-family: var(--font-d); font-weight: 600; font-size: 16px;
+  letter-spacing: .04em; text-transform: uppercase;
+  background: var(--bg); color: var(--fg);
+  border: 2.5px solid var(--border); border-radius: 8px;
+  padding: 12px 24px; cursor: pointer;
+  box-shadow: var(--shad);
+  transition: transform .10s, box-shadow .10s;
+  white-space: nowrap; outline: none;
+}
+.btn-s:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: var(--shad-s);
+}
+.btn-s:disabled { opacity: .38; cursor: not-allowed; }
+
+/* Danger — red outline */
+.btn-danger {
+  font-family: var(--font-d); font-weight: 700; font-size: 16px;
+  letter-spacing: .04em; text-transform: uppercase;
+  background: transparent; color: var(--accent);
+  border: 2.5px solid var(--accent); border-radius: 8px;
+  padding: 12px 24px; cursor: pointer;
+  box-shadow: 3px 3px 0 var(--accent);
+  transition: transform .10s, box-shadow .10s;
+  white-space: nowrap; outline: none;
+}
+.btn-danger:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--accent);
+}
+
+/* Tertiary — plain text link */
+.btn-t {
+  background: none; border: none; font-size: 13px;
+  color: var(--muted); text-decoration: underline;
+  cursor: pointer; padding: 8px; outline: none;
+}
+.btn-t:hover { color: var(--fg); }
+
+/* Green (effort / pass) */
+.btn-green {
+  font-family: var(--font-d); font-weight: 700; font-size: 16px;
+  letter-spacing: .05em; text-transform: uppercase;
+  background: var(--green); color: var(--fg);
+  border: 2.5px solid var(--border); border-radius: 8px;
+  padding: 12px 24px; cursor: pointer;
+  box-shadow: var(--shad);
+  transition: transform .10s, box-shadow .10s;
+  white-space: nowrap; outline: none;
+}
+.btn-green:active { transform: translate(2px,2px); box-shadow: var(--shad-s); }
+
+/* ── Phase badge pill ─────────────────────────────────── */
+.phase-badge {
+  display: inline-flex; align-items: center;
+  font-family: var(--font-d); font-weight: 700; font-size: 12px;
+  text-transform: uppercase; letter-spacing: .07em;
+  border: 2px solid var(--border); border-radius: 6px;
+  padding: 3px 9px; box-shadow: var(--shad-s);
+  white-space: nowrap;
+}
+.phase-badge[data-phase="PLAYING"]  { background: var(--phase-playing-bg);  color: var(--phase-playing-fg);  }
+.phase-badge[data-phase="REVEAL"]   { background: var(--phase-reveal-bg);   color: var(--phase-reveal-fg);   }
+.phase-badge[data-phase="BLAME"]    { background: var(--phase-blame-bg);    color: var(--phase-blame-fg);    }
+.phase-badge[data-phase="SNITCH"]   { background: var(--phase-snitch-bg);   color: var(--phase-snitch-fg);   }
+.phase-badge[data-phase="BREAK"]    { background: var(--phase-break-bg);    color: var(--phase-break-fg);    }
+.phase-badge[data-phase="GAMEOVER"] { background: var(--phase-over-bg);     color: var(--phase-over-fg);     }
+.phase-badge[data-phase="SETUP"]    { background: var(--surface);           color: var(--muted);             }
+
+/* ── Snitch card badge (party card shown above player slot) ── */
+.snitch-card-badge {
+  position: absolute; top: -28px; left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-d); font-weight: 700; font-size: 16px;
+  background: var(--purple); color: #fff;
+  border: 2px solid var(--border); border-radius: var(--r-sm);
+  padding: 2px 9px; box-shadow: var(--shad);
+  white-space: nowrap; pointer-events: none;
+  z-index: 10;
+}
+
+/* ── Snitch result badge ──────────────────────────────── */
+.snitch-badge {
+  font-family: var(--font-d); font-weight: 700; font-size: 18px;
+  letter-spacing: .06em; text-transform: uppercase;
+  padding: 6px 16px; border: 2.5px solid; border-radius: 8px;
+  box-shadow: var(--shad);
+  animation: scale-in 300ms cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+}
+.snitch-badge.match {
+  background: oklch(90% 0.08 145); color: var(--green-dk);
+  border-color: var(--green-dk); box-shadow: var(--shad-g);
+}
+.snitch-badge.lied {
+  background: oklch(93% 0.07 25); color: var(--accent-dk);
+  border-color: var(--accent); box-shadow: var(--shad-a);
+}
+
+/* ── Extra credit star ───────────────────────────────── */
+.extra-credit {
+  width: 24px; height: 24px;
+  background: var(--amber); border: 2px solid var(--border);
+  border-radius: 50%; box-shadow: var(--shad-s);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+}
+
+/* ── Effort pool indicator ───────────────────────────── */
+.pool-badge {
+  background: var(--surface); border: 2px solid var(--border);
+  border-radius: 6px; padding: 2px 8px; box-shadow: var(--shad-s);
+  font-family: var(--font-d); font-size: 12px; font-weight: 600;
+  color: var(--muted); letter-spacing: .04em;
+}
+.pool-badge strong { color: var(--fg); }
+
+/* ── Tooltip ─────────────────────────────────────────── */
+[data-tooltip] { position: relative; cursor: help; }
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%);
+  background: var(--fg); color: var(--bg);
+  font-size: 10px; padding: 3px 8px;
+  border-radius: var(--r-sm); border: 1.5px solid var(--border);
+  white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity 150ms; z-index: 100;
+}
+[data-tooltip]:hover::after { opacity: 1; }
+
+/* ── Toast notification ───────────────────────────────── */
+.toast {
+  position: fixed; bottom: 80px; left: 50%;
+  transform: translateX(-50%) translateY(0);
+  background: var(--fg); color: var(--bg);
+  font-family: var(--font-d); font-weight: 700; font-size: 14px;
+  text-transform: uppercase; letter-spacing: .06em;
+  padding: 9px 18px; border-radius: var(--r-sm);
+  border: 2px solid var(--border); box-shadow: var(--shad);
+  z-index: 300; white-space: nowrap;
+  animation: fade-in 200ms ease forwards;
+}
+
+/* ── "AI thinking" indicator ─────────────────────────── */
+.ai-thinking {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--muted); font-style: italic;
+}
+.ai-thinking span {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--muted);
+  animation: ai-blink 1.2s ease-in-out infinite;
+}
+.ai-thinking span:nth-child(2) { animation-delay: .2s; }
+.ai-thinking span:nth-child(3) { animation-delay: .4s; }
+@keyframes ai-blink {
+  0%,80%,100% { opacity: .2; }
+  40%         { opacity: 1;  }
+}
+
+/* ── Win screen overlay ───────────────────────────────── */
+#win-screen {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--bg);
+  display: none; flex-direction: column;
+  align-items: center; justify-content: flex-start;
+  overflow-y: auto; padding: 32px 20px 40px;
+  text-align: center;
+}
+#win-screen.active { display: flex; }
+#win-title {
+  font-family: var(--font-d); font-weight: 700;
+  font-size: clamp(40px, 12vw, 72px);
+  text-transform: uppercase; letter-spacing: .04em;
+  color: var(--fg); line-height: .9;
+}
+#win-title .hl { color: var(--accent); }
+#win-sub {
+  font-size: 14px; color: var(--muted);
+  margin-top: 6px; margin-bottom: 24px;
+}
+
+/* Confetti canvas */
+#confetti-canvas {
+  position: fixed; inset: 0; pointer-events: none; z-index: 199;
+}
+
+/* ── Scrollbar ────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0,0,0,.18); border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.32); }

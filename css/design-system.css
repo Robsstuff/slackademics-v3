@@ -1,0 +1,76 @@
+/* =====================================================
+   SLACKADEMICS — Design System
+   Art Style 2: cream/paper, Oswald, hard offset shadows
+   ===================================================== */
+
+:root {
+  /* ── Palette (OKLch) ─────────────────────────────── */
+  --bg:        oklch(97% 0.010 80);   /* warm paper white */
+  --surface:   oklch(93% 0.018 75);   /* cream card/panel */
+  --surface-hi:oklch(96% 0.012 78);   /* lifted surface */
+  --fg:        oklch(12% 0.010 60);   /* near-black ink */
+  --muted:     oklch(45% 0.012 60);   /* supporting text */
+  --border:    oklch(14% 0.010 60);   /* thick ink border */
+  --accent:    oklch(52% 0.22  25);   /* red solo cup */
+  --accent-dk: oklch(42% 0.22  25);   /* darker red */
+  --green:     oklch(74% 0.16 145);   /* effort mint */
+  --green-dk:  oklch(50% 0.18 145);   /* darker mint */
+  --amber:     oklch(72% 0.16  65);   /* party amber */
+  --amber-dk:  oklch(52% 0.18  65);
+  --purple:    oklch(52% 0.18 290);   /* blame/snitch */
+  --purple-dk: oklch(38% 0.18 290);
+  --blue:      oklch(55% 0.18 240);   /* playing phase */
+  --blue-dk:   oklch(40% 0.20 240);
+
+  /* ── Shadows ─────────────────────────────────────── */
+  --shad:      4px 4px 0 var(--border);
+  --shad-s:    2px 2px 0 var(--border);
+  --shad-a:    4px 4px 0 var(--accent);
+  --shad-g:    4px 4px 0 var(--green-dk);
+
+  /* ── Typography ──────────────────────────────────── */
+  --font-d:  'Oswald', 'Arial Narrow', sans-serif;
+  --font-b:  -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-m:  ui-monospace, 'JetBrains Mono', Menlo, monospace;
+
+  /* ── Spacing ─────────────────────────────────────── */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
+  --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+
+  /* ── Radius ──────────────────────────────────────── */
+  --r-sm: 6px;  --r-md: 10px;  --r-lg: 14px;
+
+  /* ── Card ────────────────────────────────────────── */
+  --card-w: 88px;
+  --card-h: 132px;
+  --card-border: 2.5px;
+  --card-r: 11px;
+
+  /* ── Phase pills ─────────────────────────────────── */
+  --phase-playing-bg:  oklch(91% 0.06 240);
+  --phase-playing-fg:  oklch(30% 0.20 240);
+  --phase-reveal-bg:   oklch(90% 0.06 145);
+  --phase-reveal-fg:   oklch(28% 0.20 145);
+  --phase-blame-bg:    oklch(92% 0.07  25);
+  --phase-blame-fg:    oklch(38% 0.22  25);
+  --phase-snitch-bg:   oklch(93% 0.08  65);
+  --phase-snitch-fg:   oklch(42% 0.20  65);
+  --phase-break-bg:    oklch(91% 0.07 290);
+  --phase-break-fg:    oklch(36% 0.20 290);
+  --phase-over-bg:     oklch(12% 0.010 60);
+  --phase-over-fg:     oklch(97% 0.010 80);
+}
+
+/* ── Reset ───────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  font-family: var(--font-b);
+  background: var(--bg);
+  color: var(--fg);
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button { font-family: inherit; }
+img { display: block; max-width: 100%; }

@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Slackademics</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/design-system.css">
+<link rel="stylesheet" href="css/main.css">
+<link rel="stylesheet" href="css/cards.css">
+<link rel="stylesheet" href="css/animations.css">
+<link rel="stylesheet" href="css/ui.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN 1 — MAIN MENU
+═══════════════════════════════════════════ -->
+<section id="s-menu" class="screen active">
+
+  <!-- mascot SVG (built-in, no external file needed) -->
+  <div class="mascot-wrap">
+    <svg viewBox="0 0 260 168" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Slackademics mascot">
+      <ellipse cx="118" cy="158" rx="78" ry="8" fill="rgba(0,0,0,.08)"/>
+      <!-- arms holding a red solo cup -->
+      <path d="M148 118 Q180 120 206 112" stroke="#9a7548" stroke-width="18" stroke-linecap="round" fill="none"/>
+      <ellipse cx="207" cy="108" rx="13" ry="7" fill="var(--fg)" transform="rotate(-10 207 108)"/>
+      <path d="M104 122 Q72 128 48 142" stroke="#9a7548" stroke-width="18" stroke-linecap="round" fill="none"/>
+      <ellipse cx="46" cy="145" rx="14" ry="7" fill="var(--fg)" transform="rotate(20 46 145)"/>
+      <!-- body -->
+      <rect x="96" y="90" width="68" height="36" rx="14" fill="#e8e8e8"/>
+      <!-- arm + solo cup -->
+      <path d="M98 100 Q68 106 54 114" stroke="#f5c5a3" stroke-width="13" stroke-linecap="round" fill="none"/>
+      <path d="M40 100 L44 126 L60 126 L64 100 Z" fill="var(--accent)"/>
+      <rect x="38" y="98" width="28" height="7" rx="3" fill="var(--accent-dk)"/>
+      <!-- head -->
+      <ellipse cx="154" cy="73" rx="25" ry="24" fill="#f5c5a3"/>
+      <!-- grad cap -->
+      <ellipse cx="154" cy="54" rx="23" ry="14" fill="var(--fg)"/>
+      <!-- cheeks -->
+      <ellipse cx="144" cy="78" rx="5" ry="3" fill="#f9a8a8" opacity=".55"/>
+      <ellipse cx="164" cy="78" rx="5" ry="3" fill="#f9a8a8" opacity=".55"/>
+      <!-- eyes -->
+      <ellipse cx="147" cy="69" rx="3" ry="3.5" fill="var(--fg)"/>
+      <ellipse cx="162" cy="69" rx="3" ry="3.5" fill="var(--fg)"/>
+      <ellipse cx="148" cy="68" rx="1" ry="1.2" fill="#fff"/>
+      <ellipse cx="163" cy="68" rx="1" ry="1.2" fill="#fff"/>
+      <!-- smile -->
+      <path d="M146 80 Q154 87 162 80" stroke="var(--fg)" stroke-width="2" fill="none" stroke-linecap="round"/>
+      <!-- grad cap board -->
+      <polygon points="154,40 112,56 154,62 196,56" fill="var(--fg)"/>
+      <rect x="134" y="36" width="40" height="10" rx="2" fill="var(--fg)"/>
+      <line x1="196" y1="56" x2="200" y2="76" stroke="var(--fg)" stroke-width="2"/>
+      <circle cx="200" cy="79" r="4" fill="var(--fg)"/>
+    </svg>
+  </div>
+
+  <h1 class="menu-logo">Slack<span class="accent">a</span>demics</h1>
+  <p class="menu-sub">The group project simulation game.</p>
+
+  <div class="menu-btns" style="margin-top:28px;">
+    <button class="btn-p" onclick="goScreen('lobby')">Start Game</button>
+    <button class="btn-s">Join Game</button>
+    <button class="btn-t">How to Play</button>
+  </div>
+
+  <div class="menu-meta">
+    <span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+        <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h5"/>
+        <circle cx="18" cy="7" r="4"/><path d="M13 21v-2a4 4 0 0 1 4-4h1"/>
+      </svg>
+      3–8 Players
+    </span>
+    <span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+        <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+      </svg>
+      25 Minutes
+    </span>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN 2 — LOBBY
+═══════════════════════════════════════════ -->
+<section id="s-lobby" class="screen">
+  <div class="screen-hdr">
+    <button class="hdr-back" onclick="goScreen('menu')" aria-label="Back">&#8592;</button>
+    <span class="hdr-title">Game Lobby</span>
+    <span class="hdr-badge" id="lobby-count-badge">3 / 8</span>
+  </div>
+
+  <div class="lobby-body">
+    <div class="code-card">
+      <div class="code-eyebrow">Game Code</div>
+      <div class="code-value" id="game-code">SLKD</div>
+      <div class="code-note">Share this code with friends to join</div>
+    </div>
+
+    <div>
+      <div class="sec-lbl">Players (<span id="pc-label">3</span>)</div>
+      <div class="player-grid" id="player-grid"></div>
+    </div>
+
+    <div>
+      <div class="sec-lbl">Add Player</div>
+      <div class="add-row">
+        <input class="text-in" id="pname" type="text"
+               placeholder="Enter player name…" maxlength="14"
+               autocomplete="off" spellcheck="false" />
+        <button class="add-btn" onclick="addPlayer()" aria-label="Add player">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="lobby-foot">
+    <p class="lobby-note" id="lobby-note">3 players — ready to start!</p>
+    <button class="btn-p" id="start-game-btn" onclick="goScreen('game')">Start Game</button>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN 3 — GAME
+═══════════════════════════════════════════ -->
+<section id="s-game" class="screen">
+
+  <!-- main game column -->
+  <div class="game-main">
+
+    <!-- sticky top bar -->
+    <div class="game-hdr">
+      <div class="round-lbl">Semester 3&thinsp;/&thinsp;8</div>
+      <div class="semester-name" style="font-size:11px;opacity:.7;text-align:center;"></div>
+      <div class="turn-block">
+        <div class="turn-sub">Playing</div>
+        <div class="turn-name" id="turn-name">Jordan</div>
+        <div id="ai-thinking" class="ai-thinking" style="display:none">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+      <div class="effort-pip unknown" id="effort-pip">
+        <div class="effort-pip-lbl">Effort</div>
+        <div class="effort-pip-val" id="effort-val">?</div>
+      </div>
+    </div>
+
+    <!-- scrollable body -->
+    <div class="game-body">
+
+      <!-- project pile zone -->
+      <div class="pile-zone">
+        <div class="pile-meta">
+          <span class="pile-target">Target: <strong>20</strong></span>
+          <span class="pool-badge">Pool: <strong>14</strong> left</span>
+        </div>
+
+        <!-- phase badge below meta -->
+        <div style="margin-bottom:10px">
+          <span class="phase-badge" data-phase="PLAYING" id="phase-badge">Playing Cards</span>
+        </div>
+
+        <!-- project pile fan -->
+        <div class="pile-cards" id="project-pile">
+          <!-- face-up card: 4 -->
+          <div class="card card-sm no-interact" data-value="4" style="transform:rotate(-3deg)">
+            <div class="c-hdr"><span>Effort</span><span class="c-badge">4</span></div>
+            <div class="c-art">
+              <div class="c-split"><div class="c-party"></div><div class="c-study"></div></div>
+              <div class="c-num">4</div>
+            </div>
+            <div class="c-foot"><div class="c-foot-txt">Dedication</div></div>
+          </div>
+          <!-- face-up card: 2 -->
+          <div class="card card-sm no-interact" data-value="2" style="transform:rotate(2deg)">
+            <div class="c-hdr"><span>Effort</span><span class="c-badge">2</span></div>
+            <div class="c-art">
+              <div class="c-split"><div class="c-party"></div><div class="c-study"></div></div>
+              <div class="c-num">2</div>
+            </div>
+            <div class="c-foot"><div class="c-foot-txt">Half Baked</div></div>
+          </div>
+          <!-- face-up card: 5 -->
+          <div class="card card-sm no-interact" data-value="5" style="transform:rotate(-1deg)">
+            <div class="c-hdr"><span>Effort</span><span class="c-badge">5</span></div>
+            <div class="c-art">
+              <div class="c-split"><div class="c-party"></div><div class="c-study"></div></div>
+              <div class="c-num">5</div>
+            </div>
+            <div class="c-foot"><div class="c-foot-txt">On Track</div></div>
+          </div>
+          <!-- mystery face-down card -->
+          <div class="card card-sm card-back card-mystery no-interact" style="transform:rotate(4deg)" aria-label="Face-down card">
+            <div class="card-back-label" style="
+              position:absolute;inset:0;display:flex;align-items:center;
+              justify-content:center;font-family:var(--font-d);
+              font-size:9px;color:rgba(26,22,18,.35);text-transform:uppercase;
+              letter-spacing:.12em;">?</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leadership skill display (DEADLINE phase only) -->
+      <div id="skill-bar" style="display:none; margin-bottom:10px; gap:8px; flex-wrap:wrap; padding:8px; background:rgba(212,175,55,.12); border:1px solid rgba(212,175,55,.3); border-radius:8px;">
+        <div id="skill-faceup" style="flex:1; min-width:140px; padding:8px; background:rgba(0,0,0,.3); border-radius:6px;"></div>
+        <div id="skill-facedown" style="flex:1; min-width:140px; padding:8px; background:rgba(0,0,0,.3); border-radius:6px;"></div>
+      </div>
+
+      <!-- other players -->
+      <div class="players-bar">
+        <div class="sec-lbl" style="padding:0 0 6px">Players</div>
+        <div class="players-row" id="players-row">
+
+          <!-- Player: Alex (active turn, project leader) -->
+          <div class="player-slot active-turn" id="slot-alex">
+            <div class="slot-name">Alex</div>
+            <div class="slot-role">Leader</div>
+            <div class="slot-party">🂠 5</div>
+            <div class="fail-pips">
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip"></div>
+              <div class="fail-pip"></div>
+              <div class="fail-pip"></div>
+            </div>
+          </div>
+
+          <!-- Player: Jordan (active playing turn shown in header) -->
+          <div class="player-slot" id="slot-jordan">
+            <div class="slot-name">Jordan</div>
+            <div class="slot-role">Player</div>
+            <div class="slot-party">🂠 3</div>
+            <div class="fail-pips">
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip"></div>
+              <div class="fail-pip"></div>
+              <div class="fail-pip"></div>
+              <div class="fail-pip"></div>
+            </div>
+          </div>
+
+          <!-- Player: Sam -->
+          <div class="player-slot" id="slot-sam">
+            <div class="slot-name">Sam</div>
+            <div class="slot-role">Player</div>
+            <div class="slot-party">🂠 7</div>
+            <div class="fail-pips">
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip"></div>
+              <div class="fail-pip"></div>
+            </div>
+          </div>
+
+          <!-- Player: Riley (expelled) -->
+          <div class="player-slot expelled" id="slot-riley">
+            <div class="slot-name">Riley</div>
+            <div class="slot-role">Expelled</div>
+            <div class="slot-party">🂠 2</div>
+            <div class="fail-pips">
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip filled"></div>
+              <div class="fail-pip filled"></div>
+            </div>
+            <div class="expelled-stamp">OUT</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- human player hand -->
+      <div class="hand-section">
+        <div class="hand-meta">
+          <span>Your hand (5 cards)</span>
+          <span>Tap to select</span>
+        </div>
+
+        <div class="hand-fan" id="hand-fan">
+          <div class="card" data-fi="0" data-value="6"
+               onclick="selectCard(this,'Laser Focus','Contribute 6 effort to the project.')">
+            <div class="c-hdr"><span>Effort</span><span class="c-badge">6</span></div>
+            <div class="c-art">
+              <div class="c-split"><div class="c-party"></div><div class="c-study"></div></div>
+              <div class="c-num">6</div>
+            </div>
+            <div class="c-foot"><div class="c-foot-txt">Laser Focus</div></div>
+          </div>
+
+          <div class="card" data-fi="1" data-value="2"
+               onclick="selectCard(this,'Half Baked','Contribute 2 effort to the project.')">
+            <div class="c-hdr"><span>Effort</span><span class="c-badge">2</span></div>
+            <div class="c-art">
+              <div class="c-split"><div class="c-party"></div><div class="c-study"></div></div>
+              <div class="c-num">2</div>
+            </div>
+            <div class="c-foot"><div class="c-foot-txt">Half Baked</div></div>
+          </div>
+
+          <div class="card card-sp" data-fi="2"
+               onclick="selectCard(this,'Curve the Grade','Project target -3 this semester. Only the Project Leader can play this.')">
+            <div class="c-hdr"><span>Special</span><span class="c-badge">&#9733;</span></div>
+            <div class="c-art-sp"><span class="c-art-sp-txt">Curve the Grade</span></div>
+            <div class="c-foot"><div class="c-foot-txt">Target &#8722;3</div></div>
+          </div>
+
+          <div class="card" data-fi="3" data-value="4"
+               onclick="selectCard(this,'Dedication','Contribute 4 effort to the project.')">
+            <div class="c-hdr"><span>Effort</span><span class="c-badge">4</span></div>
+            <div class="c-art">
+              <div class="c-split"><div class="c-party"></div><div class="c-study"></div></div>
+              <div class="c-num">4</div>
+            </div>
+            <div class="c-foot"><div class="c-foot-txt">Dedication</div></div>
+          </div>
+
+          <div class="card" data-fi="4" data-value="1"
+               onclick="selectCard(this,'Phone It In','Contribute 1 effort to the project. You may draw 2 extra cards.')">
+            <div class="c-hdr"><span>Effort</span><span class="c-badge">1</span></div>
+            <div class="c-art">
+              <div class="c-split"><div class="c-party"></div><div class="c-study"></div></div>
+              <div class="c-num">1</div>
+            </div>
+            <div class="c-foot"><div class="c-foot-txt">Phone It In</div></div>
+          </div>
+        </div>
+
+        <div class="sel-strip" id="sel-strip">
+          <span class="sel-desc">Tap a card to see its effect.</span>
+        </div>
+      </div>
+
+    </div><!-- /game-body -->
+
+    <!-- sticky action bar — renderer.js shows/hides these by phase -->
+    <div class="action-bar">
+
+      <!-- PLAYING phase — human turn (pair mechanic) -->
+      <button class="btn-s" id="btn-party"   style="display:none">To Party Pile</button>
+      <button class="btn-p" id="btn-project" style="display:none">To Project</button>
+
+      <!-- General advance (AI turns / REVEAL / BREAK / BREAK_DRAW) -->
+      <button class="btn-p" id="btn-continue" style="display:none">Continue &#8594;</button>
+
+      <!-- DEADLINE phase — human is Project Leader -->
+      <button class="btn-p"      id="btn-let-it-ride"   style="display:none">Let It Ride</button>
+      <button class="btn-s"      id="btn-skill-faceup"  style="display:none">Use: Skill</button>
+      <button class="btn-t"      id="btn-skill-facedown" style="display:none">Use: ? (Face-down)</button>
+
+      <!-- BLAME phase — human is Project Leader -->
+      <button class="btn-danger" id="btn-blame"      style="display:none">Accuse a Player</button>
+      <button class="btn-s"      id="btn-skip-blame" style="display:none">Skip Blame</button>
+
+      <!-- BLAME_VOTE phase — human is a voter -->
+      <button class="btn-danger" id="btn-vote-accused" style="display:none">Blame Accused</button>
+      <button class="btn-s"      id="btn-vote-leader"  style="display:none">Blame Leader</button>
+
+      <!-- SNITCH phase — human is current snitch -->
+      <button class="btn-s"  id="btn-snitch-target" style="display:none">Snitch on Someone</button>
+      <button class="btn-t"  id="btn-snitch-pass"   style="display:none">Pass (End Chain)</button>
+
+      <!-- GAMEOVER -->
+      <button class="btn-p" id="btn-scores" style="display:none">See Final Scores &#8594;</button>
+
+    </div>
+
+  </div><!-- /game-main -->
+
+  <!-- game log (visible at 640px+) -->
+  <aside class="game-log-panel" id="game-log" aria-live="polite">
+    <div class="log-hdr">Game Log</div>
+    <ul class="log-list" id="log-list" role="log">
+      <li class="log-entry log-system"><span class="log-sem">[S1]</span> Game started — 4 players</li>
+      <li class="log-entry"><span class="log-sem">[S1]</span> Alex played a card to the project</li>
+      <li class="log-entry"><span class="log-sem">[S1]</span> Jordan played a card to the project</li>
+      <li class="log-entry"><span class="log-sem">[S1]</span> Sam played a card to the project</li>
+      <li class="log-entry log-fail"><span class="log-sem">[S1]</span> Project FAILED — 9/20</li>
+      <li class="log-entry"><span class="log-sem">[S1]</span> Alex gets a fail token</li>
+      <li class="log-entry log-blame"><span class="log-sem">[S1]</span> Jordan blames Alex</li>
+      <li class="log-entry log-snitch"><span class="log-sem">[S1]</span> Alex snitches — card matches!</li>
+      <li class="log-entry"><span class="log-sem">[S1]</span> Jordan gets an extra fail token</li>
+      <li class="log-entry log-system"><span class="log-sem">[S2]</span> Semester 2 begins</li>
+      <li class="log-entry"><span class="log-sem">[S2]</span> Alex played a card to the project</li>
+      <li class="log-entry"><span class="log-sem">[S2]</span> Jordan played a card to the party pile</li>
+      <li class="log-entry"><span class="log-sem">[S2]</span> Sam played a card to the project</li>
+      <li class="log-entry log-pass"><span class="log-sem">[S2]</span> Project PASSED — 22/20!</li>
+      <li class="log-entry"><span class="log-sem">[S2]</span> Alex earns Extra Credit &#9733;</li>
+      <li class="log-entry log-system"><span class="log-sem">[S3]</span> Semester 3 begins</li>
+      <li class="log-entry anim-log-in"><span class="log-sem">[S3]</span> Alex played a card to the project</li>
+      <li class="log-entry anim-log-in"><span class="log-sem">[S3]</span> Jordan's turn…</li>
+    </ul>
+  </aside>
+
+</section>
+
+<!-- ═══════════════════════════════════════════
+     SCREEN 4 — SCOREBOARD
+═══════════════════════════════════════════ -->
+<section id="s-score" class="screen">
+  <div class="screen-hdr">
+    <span class="hdr-title">Final Scores</span>
+    <span class="hdr-badge">8 / 8 Semesters</span>
+  </div>
+
+  <div class="score-body">
+
+    <div class="score-row winner">
+      <div class="s-rank">1</div>
+      <div class="s-av">AL</div>
+      <div class="s-info">
+        <div class="s-name">Alex</div>
+        <div class="s-tag">Most effort avoided — graduated! &#127891;</div>
+      </div>
+      <div class="s-pts">
+        <div class="s-pts-val">28</div>
+        <div class="s-pts-lbl">Points</div>
+      </div>
+    </div>
+
+    <div class="score-row">
+      <div class="s-rank">2</div>
+      <div class="s-av">JO</div>
+      <div class="s-info">
+        <div class="s-name">Jordan</div>
+        <div class="s-tag">Carried the group chat</div>
+      </div>
+      <div class="s-pts">
+        <div class="s-pts-val">19</div>
+        <div class="s-pts-lbl">Points</div>
+      </div>
+    </div>
+
+    <div class="score-row">
+      <div class="s-rank">3</div>
+      <div class="s-av">SA</div>
+      <div class="s-info">
+        <div class="s-name">Sam</div>
+        <div class="s-tag">Did all the work — again</div>
+      </div>
+      <div class="s-pts">
+        <div class="s-pts-val">11</div>
+        <div class="s-pts-lbl">Points</div>
+      </div>
+    </div>
+
+    <div class="score-row expelled-row">
+      <div class="s-rank">&#8212;</div>
+      <div class="s-av">RI</div>
+      <div class="s-info">
+        <div class="s-name">Riley</div>
+        <div class="s-tag">Expelled — 5 fail tokens</div>
+      </div>
+      <div class="s-pts">
+        <div class="s-pts-val">&#8212;</div>
+        <div class="s-pts-lbl">Expelled</div>
+      </div>
+    </div>
+
+    <div class="result-card">
+      <div class="sec-lbl">Group Project Result</div>
+      <div class="result-verdict pass">PASS</div>
+      <div class="result-detail">Final effort: 54 / 50 required. You just barely scraped through.</div>
+    </div>
+
+  </div>
+
+  <div class="score-foot">
+    <button class="btn-p" onclick="goScreen('lobby'); renderLobby();">Play Again</button>
+    <button class="btn-s" onclick="goScreen('menu')">Main Menu</button>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     CONFETTI CANVAS (win)
+═══════════════════════════════════════════ -->
+<canvas id="confetti-canvas"></canvas>
+
+<!-- ═══════════════════════════════════════════
+     LOG FAB  (mobile only — floating button)
+═══════════════════════════════════════════ -->
+<button id="log-fab" class="log-fab" aria-label="Open game log">LOG</button>
+
+<!-- ═══════════════════════════════════════════
+     LOG MODAL  (mobile bottom sheet)
+═══════════════════════════════════════════ -->
+<div id="log-modal" class="log-modal" role="dialog" aria-modal="true" aria-label="Game Log">
+  <div class="log-modal-sheet">
+    <div class="log-modal-hdr">
+      <span class="log-modal-title">Game Log</span>
+      <button class="log-modal-close" id="log-modal-close" aria-label="Close">&#215;</button>
+    </div>
+    <ul class="log-modal-list" id="log-modal-list" role="log"></ul>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     JS — Phase 1 navigation + demo interactions
+═══════════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── Screen navigation ───────────────────────────────── */
+function goScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById('s-' + id);
+  if (el) {
+    el.classList.add('active');
+    el.scrollTop = 0;
+  }
+}
+
+/* ── Card selection (human hand) ─────────────────────── */
+function selectCard(el, name, desc) {
+  document.querySelectorAll('#hand-fan .card').forEach(c => c.classList.remove('sel'));
+  el.classList.add('sel');
+  const strip = document.getElementById('sel-strip');
+  strip.innerHTML =
+    '<span class="sel-name">' + name + '</span>' +
+    '<span class="sel-desc">' + desc + '</span>';
+  document.getElementById('btn-project').disabled = false;
+}
+
+/* ── Play card (stub — will be wired to engine later) ─── */
+function playCard(dest) {
+  const sel = document.querySelector('#hand-fan .card.sel');
+  if (!sel) return;
+  sel.style.opacity = '.25';
+  sel.classList.remove('sel');
+  document.getElementById('sel-strip').innerHTML =
+    '<span class="sel-desc">Card played to ' + dest + ' pile.</span>';
+  document.getElementById('btn-project').disabled = true;
+  // Phase 1: just grey the card out. Real play logic goes in animQueue.js.
+}
+
+/* ── Lobby: player management ────────────────────────── */
+let players = [
+  { name: 'You',   init: 'YU', host: true,  aiMode: null       },
+  { name: 'Sam',   init: 'SA', host: false, aiMode: 'regular'  },
+  { name: 'Riley', init: 'RI', host: false, aiMode: 'greedy'   },
+];
+
+const AI_MODE_LABELS = {
+  regular:  'Regular',
+  greedy:   'Slacker',
+  nice:     'Keener',
+  asshole:  'Saboteur',
+  random:   'Chaotic',
+  sneaky:   'Sneaky',
+  gto:      'GTO',
+};
+
+function renderLobby() {
+  const n = players.length;
+  document.getElementById('pc-label').textContent = n;
+  document.getElementById('lobby-count-badge').textContent = n + ' / 8';
+
+  const note = document.getElementById('lobby-note');
+  const need = 3 - n;
+  note.textContent = need > 0
+    ? 'Need ' + need + ' more player' + (need === 1 ? '' : 's') + ' to start'
+    : n + ' players — ready to start!';
+
+  const empties = Math.max(0, Math.min(3, 8 - n));
+  document.getElementById('player-grid').innerHTML =
+    players.map(function(p, i) {
+      var modeSelect = '';
+      if (!p.host) {
+        modeSelect = '<select class="mode-pick" data-idx="' + i + '">' +
+          Object.keys(AI_MODE_LABELS).map(function(m) {
+            return '<option value="' + m + '"' + (p.aiMode === m ? ' selected' : '') + '>' +
+                   AI_MODE_LABELS[m] + '</option>';
+          }).join('') +
+        '</select>';
+      } else {
+        modeSelect = '<div class="p-role">You (Human)</div>';
+      }
+      return '<div class="p-chip' + (p.host ? ' is-host' : '') + '">' +
+        '<div class="p-av">' + p.init + '</div>' +
+        '<div class="p-name">' + p.name + '</div>' +
+        modeSelect +
+      '</div>';
+    }).join('') +
+    Array.from({length: empties}, function() {
+      return '<div class="p-chip is-empty">' +
+        '<div class="p-av">+</div>' +
+        '<div class="p-name">Empty</div>' +
+        '<div class="p-role">Slot</div>' +
+      '</div>';
+    }).join('');
+
+  // Wire up mode-change listeners
+  document.querySelectorAll('.mode-pick').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+      players[parseInt(this.dataset.idx, 10)].aiMode = this.value;
+    });
+  });
+
+  document.getElementById('start-game-btn').disabled = players.length < 3;
+}
+
+function addPlayer() {
+  const inp = document.getElementById('pname');
+  const raw = inp.value.trim();
+  if (!raw || players.length >= 8) return;
+  const words = raw.split(/\s+/);
+  const init = (words.length > 1
+    ? words[0][0] + words[words.length - 1][0]
+    : raw.slice(0, 2)
+  ).toUpperCase();
+  players.push({ name: raw, init, host: false, aiMode: 'regular' });
+  inp.value = '';
+  renderLobby();
+}
+
+document.getElementById('pname').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') addPlayer();
+});
+
+renderLobby();
+
+/* ── Log panel auto-scroll (desktop) ────────────────── */
+(function scrollLog() {
+  const list = document.getElementById('log-list');
+  if (list) list.scrollTop = list.scrollHeight;
+})();
+
+/* ── Log FAB + mobile bottom-sheet ──────────────────── */
+(function initLogFab() {
+  const fab      = document.getElementById('log-fab');
+  const modal    = document.getElementById('log-modal');
+  const closeBtn = document.getElementById('log-modal-close');
+  const modalList = document.getElementById('log-modal-list');
+  if (!fab || !modal) return;
+
+  function openLog() {
+    // Sync content from the main log-list
+    const src = document.getElementById('log-list');
+    if (src && modalList) modalList.innerHTML = src.innerHTML;
+    modal.classList.add('open');
+    fab.classList.remove('has-new');
+  }
+  function closeLog() { modal.classList.remove('open'); }
+
+  fab.addEventListener('click', openLog);
+  if (closeBtn) closeBtn.addEventListener('click', closeLog);
+  // Close on backdrop tap
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) closeLog();
+  });
+
+  // Mark FAB with red dot when new log entries arrive (observe log-list mutations)
+  const logList = document.getElementById('log-list');
+  if (logList && window.MutationObserver) {
+    new MutationObserver(function() {
+      if (!modal.classList.contains('open')) fab.classList.add('has-new');
+    }).observe(logList, { childList: true });
+  }
+})();
+
+/* ── AI-mode selector helpers (used by lobby) ─────────── */
+const AI_MODES = ['regular','greedy','nice','asshole','random','sneaky','gto'];
+
+function getAIModeForPlayer(playerIndex) {
+  // First slot = human; rest get round-robin AI modes
+  if (playerIndex === 0) return null;
+  return AI_MODES[(playerIndex - 1) % AI_MODES.length];
+}
+
+/* ── Connect Start Game button to main.js ─────────────── */
+document.getElementById('start-game-btn').addEventListener('click', function(e) {
+  // Prevent the existing onclick="goScreen('game')" from also firing
+  e.stopImmediatePropagation();
+
+  if (typeof window.__slk === 'undefined') {
+    // main.js not yet loaded — fall back to Phase-1 demo nav
+    goScreen('game');
+    return;
+  }
+
+  const lobbyPlayers = players.map(function(p, i) {
+    return {
+      name:    p.name,
+      isHuman: i === 0,
+      aiMode:  p.host ? null : (p.aiMode || 'regular'),
+    };
+  });
+
+  window.__slk.startGame(lobbyPlayers);
+}, true); // capture = true so this fires before the onclick goScreen
+
+</script>
+
+<!-- ═══════════════════════════════════════════
+     MAIN MODULE — loaded after inline script
+═══════════════════════════════════════════ -->
+<script type="module">
+  import { init } from './js/main.js';
+  init();
+</script>
+
+</body>
+</html>
