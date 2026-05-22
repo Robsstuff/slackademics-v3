@@ -33,7 +33,7 @@ let _humanId = null;
 let _stagedProject = null;  // card id
 let _stagedParty   = null;  // card id
 
-const AI_THINK_DELAY = 700;
+const AI_THINK_DELAY = 300;
 
 // ─────────────────────────────────────────────────────────
 //  INIT
@@ -44,7 +44,6 @@ export function init() {
   _on('btn-skill-faceup', () => _humanUseSkill('faceup'));
   _on('btn-skill-facedown',() => _humanUseSkill('facedown'));
   _on('btn-blame',        () => _openBlameOverlay());
-  _on('btn-skip-blame',   () => _humanSkipBlame());
   _on('btn-vote-accused', () => _humanVote(state => state.blameAccusedId));
   _on('btn-vote-leader',  () => _humanVote(state => state.projectLeaderId));
   _on('btn-snitch-target', () => _openSnitchOverlay());
@@ -261,7 +260,7 @@ function _runAIVotingCascade() {
 }
 
 // ─────────────────────────────────────────────────────────
-//  HUMAN PLAY PAIR  (one-click: clicked card goes to Party Pile, partner to Project)
+//  HUMAN PLAY PAIR  (one-click: clicked card goes to Project Pile, partner to Party)
 // ─────────────────────────────────────────────────────────
 function _onHumanCardClick(partyCardId, projectCardId) {
   if (!_state || queueBusy()) return;
@@ -381,14 +380,6 @@ function _openBlameOverlay() {
   document.body.appendChild(overlay);
 }
 
-function _humanSkipBlame() {
-  if (!_state || queueBusy()) return;
-  if (_state.phase !== 'BLAME' || _state.projectLeaderId !== _humanId) return;
-  let events;
-  try { events = skipBlame(_state); }
-  catch (err) { console.warn(err.message); return; }
-  _dispatchEvents(events);
-}
 
 // ─────────────────────────────────────────────────────────
 //  HUMAN VOTING

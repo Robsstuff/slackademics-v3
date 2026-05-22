@@ -7,7 +7,7 @@
 import { EFFORT_IMGS, totalFails } from './state.js';
 
 // ── Card image base paths ─────────────────────────────────
-const EFFORT_BASE    = '../CARDS/Effort Cards/';
+const EFFORT_BASE    = './cards/effort/';
 const LEADERSHIP_BASE = '../CARDS/Leadership Cards/';
 const OTHER_BASE     = '../CARDS/Other Cards/';
 
@@ -298,7 +298,7 @@ export function renderHandFan(state, humanId) {
 
   const strip = $('sel-strip');
   if (strip) strip.innerHTML = isMyTurn
-    ? '<span class="sel-desc">Tap the card you want to <strong>hide</strong> — it goes to your Party Pile, its partner to the Project.</span>'
+    ? '<span class="sel-desc">Tap a card to send it to the <strong>Project</strong> — its partner goes to your Party Pile.</span>'
     : '<span class="sel-desc">Waiting for your turn...</span>';
 
   const pairGroups = buildPairGroups(player.hand);
@@ -317,11 +317,11 @@ export function renderHandFan(state, humanId) {
       if (!isMyTurn) {
         el.classList.add('no-interact');
       } else if (_cardClickCb && pair.length >= 2) {
-        // One-click: clicked card goes to Party Pile, partner goes to Project
+        // One-click: clicked card goes to Project Pile, partner goes to Party
         const partnerCard = pair.find(c => c.id !== card.id);
         el.addEventListener('click', () => {
           if (fan.dataset.isMyTurn !== '1') return;
-          _cardClickCb(card.id, partnerCard.id);
+          _cardClickCb(partnerCard.id, card.id);  // (partyCardId, projectCardId)
         });
       } else {
         // Unpaired card (shouldn't happen) — not clickable
@@ -384,7 +384,7 @@ export function renderControlBar(state, humanId) {
   const ALL_IDS = [
     'btn-project', 'btn-party', 'btn-continue',
     'btn-let-it-ride', 'btn-skill-faceup', 'btn-skill-facedown',
-    'btn-blame', 'btn-skip-blame',
+    'btn-blame',
     'btn-vote-accused', 'btn-vote-leader',
     'btn-snitch-target', 'btn-snitch-pass',
     'btn-scores',
@@ -451,8 +451,7 @@ export function renderControlBar(state, humanId) {
 
     case 'BLAME': {
       if (isLeader) {
-        show('btn-blame',      false, 'Accuse a Player');
-        show('btn-skip-blame', false, 'Skip Blame');
+        show('btn-blame', false, 'Accuse a Player');
       } else {
         show('btn-continue', true, 'Waiting for leader…');
       }
@@ -646,6 +645,37 @@ function _scoreTagText(p, rank) {
 // ─────────────────────────────────────────────────────────
 //  FULL RENDER
 // ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
+//  PLAYER STATUS PANEL  (human's own party pile + score)
+// ─────────────────────────────────────────────────────────
+export function renderPlayerStatus(state, humanId) {
+  const el = document.getElementById('player-status-row');
+  if (!el) return;
+  const p = humanId ? state.players[humanId] : null;
+  if (!p) { el.style.display = 'none'; return; }
+  el.style.display = '';
+
+  let cards = '';
+  if (p.partyPile && p.partyPile.length > 0) {
+    cards = p.partyPile.map(c => {
+      const val = c.type === 'copy' ? 'X2' : (c.value !== undefined ? c.value : '?');
+      return `<div class="party-mini-card" data-value="${val}">${val}</div>`;
+    }).join('');
+  } else {
+    cards = '<span class="party-empty">Empty</span>';
+  }
+
+  el.innerHTML =
+    '<div class="status-section">' +
+      '<div class="status-lbl">Your Hidden Cards (' + (p.partyPile ? p.partyPile.length : 0) + ')</div>' +
+      '<div class="party-cards-row">' + cards + '</div>' +
+    '</div>' +
+    '<div class="status-score">' +
+      '<div class="status-lbl">Your Score</div>' +
+      '<div class="status-pts">' + (p.academicPoints || 0) + '</div>' +
+    '</div>';
+}
+
 export function renderAll(state, humanId) {
   renderGameHeader(state);
   renderProjectPile(state);
@@ -654,4 +684,5 @@ export function renderAll(state, humanId) {
   renderLeadershipSkills(state);
   renderControlBar(state, humanId);
   renderLog(state);
+  renderPlayerStatus(state, humanId);
 }

@@ -26,6 +26,7 @@ import {
   renderLog,
   renderEffortCounter,
   buildEffortCardHTML,
+  renderPlayerStatus,
 }                                          from './renderer.js';
 
 // ── Deterministic pile rotations (matches renderer.js) ──
@@ -255,6 +256,7 @@ export function buildStepsFromEvents(events, state) {
       renderLeadershipSkills(state);
       renderControlBar(state, _humanId);
       renderLog(state);
+      renderPlayerStatus(state, _humanId);
     },
   });
 
@@ -318,7 +320,7 @@ function _stepsCardPlayed(ev, state) {
 function _stepTurnAdvanced(ev, state) {
   return {
     label: 'TURN_ADVANCED',
-    duration: 280,
+    duration: 140,
     payload: { state, playerId: ev.playerId },
     callback({ state, playerId }) {
       renderGameHeader(state);
@@ -1009,7 +1011,7 @@ async function _animCardFly(card, playerId, isHuman) {
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
   clone.classList.add('anim-card-arc');
 
-  await sleep(520);
+  await sleep(isHuman ? 520 : 180);
   clone.remove();
 }
 

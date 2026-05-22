@@ -290,6 +290,18 @@
         </div>
       </div>
 
+      <!-- human player status: own party pile + score -->
+      <div class="player-status-row" id="player-status-row">
+        <div class="status-section">
+          <div class="status-lbl">Your Hidden Cards (0)</div>
+          <div class="party-cards-row"><span class="party-empty">Empty</span></div>
+        </div>
+        <div class="status-score">
+          <div class="status-lbl">Your Score</div>
+          <div class="status-pts">0</div>
+        </div>
+      </div>
+
       <!-- human player hand -->
       <div class="hand-section">
         <div class="hand-meta">
@@ -370,7 +382,6 @@
 
       <!-- BLAME phase — human is Project Leader -->
       <button class="btn-danger" id="btn-blame"      style="display:none">Accuse a Player</button>
-      <button class="btn-s"      id="btn-skip-blame" style="display:none">Skip Blame</button>
 
       <!-- BLAME_VOTE phase — human is a voter -->
       <button class="btn-danger" id="btn-vote-accused" style="display:none">Blame Accused</button>
