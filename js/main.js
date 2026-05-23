@@ -64,6 +64,8 @@ export function startGame(lobbyPlayers) {
   }));
 
   _humanId = configs.find(c => c.isHuman)?.id ?? configs[0].id;
+  // Also read window._slk_diff in case setDifficulty was called before __slk was ready
+  if (window._slk_diff != null) _lobbyDifficulty = window._slk_diff;
   _state   = createState(configs, _lobbyDifficulty);
   _stagedProject = null;
   _stagedParty   = null;

@@ -94,30 +94,54 @@
   </div>
 
   <div class="lobby-body">
-    <div class="code-card">
-      <div class="code-eyebrow">Game Code</div>
-      <div class="code-value" id="game-code">SLKD</div>
-      <div class="code-note">Share this code with friends to join</div>
+
+    <!-- Difficulty selector — prominent at top -->
+    <div class="lobby-section">
+      <div class="sec-lbl">Difficulty</div>
+      <div class="diff-btns" id="diff-btns">
+        <button class="diff-btn active" data-diff="1.0" onclick="setLobbyDiff(this)">
+          <span class="diff-name">Normal</span>
+          <span class="diff-desc">Standard effort targets</span>
+        </button>
+        <button class="diff-btn" data-diff="1.25" onclick="setLobbyDiff(this)">
+          <span class="diff-name">Hard</span>
+          <span class="diff-desc">+25% effort required</span>
+        </button>
+        <button class="diff-btn" data-diff="1.6" onclick="setLobbyDiff(this)">
+          <span class="diff-name">Brutal</span>
+          <span class="diff-desc">+60% effort required</span>
+        </button>
+      </div>
     </div>
 
-    <div>
-      <div class="sec-lbl">Players (<span id="pc-label">3</span>)</div>
+    <!-- Players list -->
+    <div class="lobby-section">
+      <div class="sec-lbl">Players (<span id="pc-label">1</span>)</div>
       <div class="player-grid" id="player-grid"></div>
     </div>
 
-    <div>
-      <div class="sec-lbl">Add Player</div>
-      <div class="add-row">
-        <input class="text-in" id="pname" type="text"
-               placeholder="Enter player name…" maxlength="14"
-               autocomplete="off" spellcheck="false" />
-        <button class="add-btn" onclick="addPlayer()" aria-label="Add player">+</button>
+    <!-- Preset name buttons -->
+    <div class="lobby-section">
+      <div class="sec-lbl">Add Player — tap a name</div>
+      <div class="name-btns" id="name-btns">
+        <button class="name-btn" onclick="addPresetPlayer('Kodee')">Kodee</button>
+        <button class="name-btn" onclick="addPresetPlayer('Jake')">Jake</button>
+        <button class="name-btn" onclick="addPresetPlayer('Jessie')">Jessie</button>
+        <button class="name-btn" onclick="addPresetPlayer('Colby')">Colby</button>
+        <button class="name-btn" onclick="addPresetPlayer('Danuts')">Danuts</button>
+        <button class="name-btn" onclick="addPresetPlayer('Danny')">Danny</button>
+        <button class="name-btn" onclick="addPresetPlayer('Arlo')">Arlo</button>
+        <button class="name-btn" onclick="addPresetPlayer('Luca')">Luca</button>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn-s" style="font-size:12px;padding:5px 12px" onclick="removeLastPlayer()">&#8722; Remove Last</button>
       </div>
     </div>
+
   </div>
 
   <div class="lobby-foot">
-    <p class="lobby-note" id="lobby-note">3 players — ready to start!</p>
+    <p class="lobby-note" id="lobby-note">Add players to start!</p>
     <button class="btn-p" id="start-game-btn" onclick="goScreen('game')">Start Game</button>
   </div>
 </section>
@@ -382,7 +406,7 @@
       <!-- DEADLINE phase — human is Project Leader -->
       <button class="btn-p"      id="btn-let-it-ride"   style="display:none">Let It Ride</button>
       <button class="btn-s"      id="btn-skill-faceup"  style="display:none">Use: Skill</button>
-      <button class="btn-t"      id="btn-skill-facedown" style="display:none">Use: ? (Face-down)</button>
+      <button class="btn-s"      id="btn-skill-facedown" style="display:none">Use: ? (Face-down)</button>
 
       <!-- BLAME phase — human is Project Leader -->
       <button class="btn-danger" id="btn-blame"      style="display:none">Accuse a Player</button>
@@ -570,9 +594,7 @@ function playCard(dest) {
 
 /* ── Lobby: player management ────────────────────────── */
 let players = [
-  { name: 'You',   init: 'YU', host: true,  aiMode: null       },
-  { name: 'Sam',   init: 'SA', host: false, aiMode: 'regular'  },
-  { name: 'Riley', init: 'RI', host: false, aiMode: 'greedy'   },
+  { name: 'You', init: 'YU', host: true, aiMode: null },
 ];
 
 const AI_MODE_LABELS = {
@@ -596,7 +618,6 @@ function renderLobby() {
     ? 'Need ' + need + ' more player' + (need === 1 ? '' : 's') + ' to start'
     : n + ' players — ready to start!';
 
-  const empties = Math.max(0, Math.min(3, 8 - n));
   document.getElementById('player-grid').innerHTML =
     players.map(function(p, i) {
       var modeSelect = '';
@@ -615,13 +636,6 @@ function renderLobby() {
         '<div class="p-name">' + p.name + '</div>' +
         modeSelect +
       '</div>';
-    }).join('') +
-    Array.from({length: empties}, function() {
-      return '<div class="p-chip is-empty">' +
-        '<div class="p-av">+</div>' +
-        '<div class="p-name">Empty</div>' +
-        '<div class="p-role">Slot</div>' +
-      '</div>';
     }).join('');
 
   // Wire up mode-change listeners
@@ -631,26 +645,31 @@ function renderLobby() {
     });
   });
 
+  // Dim name buttons for names already added
+  var usedNames = players.map(function(p) { return p.name; });
+  document.querySelectorAll('.name-btn').forEach(function(btn) {
+    var used = usedNames.indexOf(btn.textContent.trim()) !== -1;
+    btn.classList.toggle('used', used);
+    btn.disabled = used || players.length >= 8;
+  });
+
   document.getElementById('start-game-btn').disabled = players.length < 3;
 }
 
-function addPlayer() {
-  const inp = document.getElementById('pname');
-  const raw = inp.value.trim();
-  if (!raw || players.length >= 8) return;
-  const words = raw.split(/\s+/);
-  const init = (words.length > 1
-    ? words[0][0] + words[words.length - 1][0]
-    : raw.slice(0, 2)
-  ).toUpperCase();
-  players.push({ name: raw, init, host: false, aiMode: 'regular' });
-  inp.value = '';
+function addPresetPlayer(name) {
+  if (players.length >= 8) return;
+  if (players.some(function(p) { return p.name === name; })) return;
+  var init = name.slice(0, 2).toUpperCase();
+  players.push({ name: name, init: init, host: false, aiMode: 'regular' });
   renderLobby();
 }
 
-document.getElementById('pname').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') addPlayer();
-});
+function removeLastPlayer() {
+  // Don't remove the human (host) player
+  if (players.length <= 1) return;
+  players.pop();
+  renderLobby();
+}
 
 renderLobby();
 
@@ -735,10 +754,12 @@ document.getElementById('start-game-btn').addEventListener('click', function(e) 
 </script>
 
 <script>
+window._slk_diff = 1.0;  // fallback store, read by main.js if __slk not yet ready
 function setLobbyDiff(btn) {
   document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   const d = parseFloat(btn.dataset.diff);
+  window._slk_diff = d;
   if (window.__slk) window.__slk.setDifficulty(d);
 }
 </script>

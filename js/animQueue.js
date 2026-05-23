@@ -574,14 +574,14 @@ function _stepExtraCredit(ev, state) {
         credits.className = 'slot-credits';
         slot.appendChild(credits);
       }
-      const star = document.createElement('span');
-      star.textContent = '★';
-      star.style.display = 'inline-block';
-      star.classList.add('anim-scale-in');
-      credits.appendChild(star);
+      const ecImg = document.createElement('img');
+      ecImg.src = './cards/other/ExtraCredit1.jpg';
+      ecImg.alt = 'Extra Credit';
+      ecImg.className = 'ec-pip-img anim-scale-in';
+      credits.appendChild(ecImg);
       // Banner showing who earned it
       const p = state.players[playerId];
-      _showBanner('pass', (p ? p.name : '?') + ' earns Extra Credit! ★');
+      _showBanner('pass', (p ? p.name : '?') + ' earns Extra Credit!');
       setTimeout(() => _removeBanner(), 900);
     },
   };
@@ -838,7 +838,7 @@ function _stepPairDrawn(ev, state) {
         if (slot) {
           const p       = state.players[playerId];
           const partyEl = slot.querySelector('.slot-party');
-          if (partyEl) partyEl.innerHTML = `&#128128;&thinsp;${p.partyPile.length}`;
+          if (partyEl) partyEl.innerHTML = `<img src="./cards/Card Back Regular.jpg" alt="cards" class="party-pile-back"/><span class="party-pile-count">${p.partyPile.length}</span>`;
         }
         return;
       }

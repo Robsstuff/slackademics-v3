@@ -97,7 +97,7 @@ export const LEADERSHIP_SKILLS = [
   { id:'vibe',       name:'Match My Vibe', img:'Match My Vibe.jpg',
     desc:'+4 Effort for each pair of matching values in the Project Pile.' },
   { id:'reputation', name:'Positive Reputation', img:'Reputation.jpg',
-    desc:'+2 Effort for each Extra Credit earned this game.' },
+    desc:'+1 Effort for each Extra Credit earned this game.' },
   { id:'evenodds',   name:'Even the Odds', img:'Even the Odds.jpg',
     desc:'All odd-numbered effort cards in the Project Pile now have a value of 4.' },
   { id:'complain',   name:'Complain to the Dean', img:'Complain.jpg',
@@ -105,7 +105,7 @@ export const LEADERSHIP_SKILLS = [
   { id:'eureka',     name:'Eureka!', img:'Eureka.jpg',
     desc:'+5 Effort. Additional +5 if this card was chosen face-down.' },
   { id:'desperation',name:'Desperation', img:'Desperation.jpg',
-    desc:'+5 Effort for each project the group has failed.' },
+    desc:'+1 Effort for each project the group has failed.' },
 ];
 
 // ── Card factory ──────────────────────────────────────────

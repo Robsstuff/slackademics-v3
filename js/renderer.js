@@ -9,7 +9,8 @@ import { EFFORT_IMGS, COURSE_NAMES, SEMESTER_NAMES, totalFails } from './state.j
 // ── Card image base paths ─────────────────────────────────
 const EFFORT_BASE    = './cards/effort/';
 const LEADERSHIP_BASE = '../CARDS/Leadership Cards/';
-const OTHER_BASE     = '../CARDS/Other Cards/';
+const OTHER_BASE     = './cards/other/';
+const CARD_BACK_SRC  = './cards/Card Back Regular.jpg';
 
 // ── Module-level state ────────────────────────────────────
 let _projectTarget = 20;   // updated from state on every renderGameHeader
@@ -67,7 +68,11 @@ function initials(name) {
 function failPipsHTML(count, limit = 5) {
   let html = '';
   for (let i = 0; i < limit; i++) {
-    html += `<div class="fail-pip${i < count ? ' filled' : ''}"></div>`;
+    if (i < count) {
+      html += `<div class="fail-pip filled"><img src="${OTHER_BASE}Fail1.jpg" alt="Fail" class="fail-pip-img"/></div>`;
+    } else {
+      html += `<div class="fail-pip empty"></div>`;
+    }
   }
   return html;
 }
@@ -237,11 +242,16 @@ export function renderPlayersBar(state) {
     let inner =
       `<div class="slot-name">${esc(p.name)}</div>` +
       `<div class="slot-role">${roleText}</div>` +
-      `<div class="slot-party">&#128128;&thinsp;${p.partyPile.length}</div>` +
+      `<div class="slot-party"><img src="${CARD_BACK_SRC}" alt="cards" class="party-pile-back"/><span class="party-pile-count">${p.partyPile.length}</span></div>` +
       `<div class="fail-pips">${failPipsHTML(failTotal)}</div>`;
 
     if (p.extraCredits > 0) {
-      inner += `<div class="slot-credits">${'&#9733;'.repeat(Math.min(p.extraCredits, 5))}</div>`;
+      const ecCount = Math.min(p.extraCredits, 5);
+      let ecHtml = '';
+      for (let i = 0; i < ecCount; i++) {
+        ecHtml += `<img src="${OTHER_BASE}ExtraCredit1.jpg" alt="Extra Credit" class="ec-pip-img"/>`;
+      }
+      inner += `<div class="slot-credits">${ecHtml}</div>`;
     }
 
     if (p.isExpelled) inner += `<div class="expelled-stamp">OUT</div>`;

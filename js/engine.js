@@ -112,7 +112,7 @@ function calcSkillBonus(state, skill, wasFaceDown) {
     }
     case 'reputation': {
       const totalEC = Object.values(state.players).reduce((s, p) => s + p.extraCredits, 0);
-      return totalEC * 2;
+      return totalEC * 1;
     }
     case 'curve': {
       state.targetBonus  = (state.targetBonus  || 0) - 6;
@@ -120,7 +120,7 @@ function calcSkillBonus(state, skill, wasFaceDown) {
       return 0;   // handled via targetBonus
     }
     case 'eureka': return wasFaceDown ? 10 : 5;
-    case 'desperation': return (state.projectsFailed || 0) * 5;
+    case 'desperation': return (state.projectsFailed || 0) * 1;
     default: return 0;
   }
 }

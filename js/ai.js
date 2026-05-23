@@ -306,11 +306,11 @@ function _estimateSkillBonus(state, skill, wasFaceDown) {
     case 'coffee': return pile.filter(c => c.type === 'effort' && c.value <= 3).length * 2;
     case 'vibe': return 4;         // assume at least one pair
     case 'eureka': return 5;
-    case 'desperation': return (state.projectsFailed || 0) * 5;
+    case 'desperation': return (state.projectsFailed || 0) * 1;
     case 'curve': return 6;
     case 'complain': return 8 - 4; // removes ~2 × avg 2 = 4, adds 8 → net +4
     case 'evenodds': return 2;
-    case 'reputation': return Object.values(state.players).reduce((s, p) => s + p.extraCredits, 0) * 2;
+    case 'reputation': return Object.values(state.players).reduce((s, p) => s + p.extraCredits, 0) * 1;
     default: return 2;
   }
 }
@@ -416,28 +416,33 @@ function _actionSnitch(state, playerId, player) {
   const others = activePlayers(state).filter(id => id !== playerId);
 
   let confirmedAbove = 0;
+  let confirmedEqual = 0;
   let estimatedAbove = 0;
 
   for (const id of others) {
     const projCard = state.projectPile.find(c => c.playerId === id);
     if (projCard && projCard.revealed && projCard.type === 'effort') {
       const inferred = Math.max(0, 8 - projCard.value);
-      if (inferred > myVal) confirmedAbove += 1;
+      if (inferred > myVal)  confirmedAbove += 1;
+      else if (inferred === myVal) confirmedEqual += 1;
     } else {
-      // Unknown — estimate 0.5 probability of being above
+      // Unknown — estimate 0.5 probability of being above or equal
       estimatedAbove += 0.5;
     }
   }
 
-  // Rule 1: I'm highest — never snitch
-  if (confirmedAbove === 0 && estimatedAbove < 0.3) return { type: 'SNITCH_PASS' };
-  // Rule 2: I'm lowest — always snitch
-  if (confirmedAbove >= others.length - 1) {
+  // A snitch succeeds if the other player's card is >= mine (new rule)
+  const confirmedWin = confirmedAbove + confirmedEqual;
+
+  // Rule 1: no one is above or equal, few unknowns — don't snitch
+  if (confirmedWin === 0 && estimatedAbove < 0.4) return { type: 'SNITCH_PASS' };
+  // Rule 2: confirmed win available — always snitch
+  if (confirmedWin >= 1) {
     return _pickSnitchTarget(state, playerId, player, others);
   }
 
-  // Rule 3: Probabilistic
-  const pSnitch = (confirmedAbove + 0.5 * estimatedAbove) / Math.max(1, others.length - 1);
+  // Rule 3: Probabilistic — more aggressive than before (base 0.6)
+  const pSnitch = 0.6 + (0.4 * estimatedAbove / Math.max(1, others.length));
   if (Math.random() < pSnitch) {
     return _pickSnitchTarget(state, playerId, player, others);
   }
