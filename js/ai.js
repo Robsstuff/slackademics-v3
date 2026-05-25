@@ -38,6 +38,8 @@ export function getAIAction(state, playerId) {
     case 'DEADLINE':
       if (state.pendingSkillStep === 'realign-pick-target')
         return _actionRealignTarget(state, playerId, player);
+      if (state.pendingSkillStep === 'extra-credit-pick' && state.projectLeaderId === playerId)
+        return _actionPickExtraCredit(state, playerId, player);
       if (state.activePlayerId === playerId)
         return _actionDeadline(state, playerId, player);
       return null;
@@ -50,7 +52,10 @@ export function getAIAction(state, playerId) {
     case 'SNITCH':
       if (state.snitchCurrentId !== playerId) return null;
       return _actionSnitch(state, playerId, player);
-    case 'BREAK':      return { type: 'NEXT_SEMESTER' };
+    case 'BREAK':
+      if (state.pendingSkillStep === 'extra-credit-pick' && state.projectLeaderId === playerId)
+        return _actionPickExtraCredit(state, playerId, player);
+      return { type: 'NEXT_SEMESTER' };
     case 'BREAK_DRAW':
       if (state.breakDrawCurrent !== playerId) return null;
       return _actionDrawPair(state, playerId, player);
@@ -330,6 +335,20 @@ function _actionRealignTarget(state, playerId, player) {
   return { type: 'PICK_REALIGN_TARGET', targetId: bestId };
 }
 
+function _actionPickExtraCredit(state, playerId, player) {
+  // Pick the player with the lowest party pile score (help them out, or pick anyone)
+  const options = activePlayers(state).filter(id => id !== playerId);
+  if (options.length === 0) return { type: 'AWARD_EXTRA_CREDIT', recipientId: playerId };
+  // Prefer player with fewest extra credits (generosity strategy)
+  let pick = options[0];
+  let minEC = Infinity;
+  for (const id of options) {
+    const ec = state.players[id].extraCredits;
+    if (ec < minEC) { minEC = ec; pick = id; }
+  }
+  return { type: 'AWARD_EXTRA_CREDIT', recipientId: pick };
+}
+
 // ─────────────────────────────────────────────────────────
 //  BLAME PHASE
 // ─────────────────────────────────────────────────────────
@@ -412,8 +431,11 @@ function _actionSnitch(state, playerId, player) {
   const myPartyTop = player.partyPile[player.partyPile.length - 1];
   const myVal      = myPartyTop ? (myPartyTop.type === 'effort' ? myPartyTop.value : 0) : 0;
 
-  // Collect known party values from revealed project cards (inferred)
-  const others = activePlayers(state).filter(id => id !== playerId);
+  // Collect eligible targets (not already snitched this turn)
+  const alreadySnitched = state.snitchedThisTurn || [];
+  const others = activePlayers(state).filter(id => id !== playerId && !alreadySnitched.includes(id));
+  // If no eligible targets, pass
+  if (others.length === 0) return { type: 'SNITCH_PASS' };
 
   let confirmedAbove = 0;
   let confirmedEqual = 0;
@@ -450,11 +472,16 @@ function _actionSnitch(state, playerId, player) {
 }
 
 function _pickSnitchTarget(state, playerId, player, others) {
+  // Filter out players already snitched this turn (can only be snitched once)
+  const alreadySnitched = state.snitchedThisTurn || [];
+  const eligible = others.filter(id => !alreadySnitched.includes(id));
+  if (eligible.length === 0) return { type: 'SNITCH_PASS' };
+
   // Target the player with the highest inferred party pile card
   let bestId  = null;
   let bestVal = -1;
 
-  for (const id of others) {
+  for (const id of eligible) {
     const projCard = state.projectPile.find(c => c.playerId === id);
     let inferred = 4; // default estimate
     if (projCard && projCard.revealed && projCard.type === 'effort') {

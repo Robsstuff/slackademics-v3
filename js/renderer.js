@@ -163,10 +163,17 @@ export function renderGameHeader(state) {
   const pool = document.querySelector('.pool-badge strong');
   if (pool) pool.textContent = state.effortPool.length;
 
+  // Prominent exam name banner
+  const semIdx   = Math.max(0, Math.min(state.semester - 1, 7));
+  const fullName = COURSE_NAMES[semIdx] ?? '';
+  const examCode  = $('exam-code');
+  const examTitle = $('exam-title');
+  if (examCode)  examCode.textContent  = state.semesterName ?? '';
+  if (examTitle) examTitle.textContent = fullName;
+
+  // Legacy hidden semester-name (kept for any other compat code)
   const semName = document.querySelector('.semester-name');
   if (semName) {
-    const semIdx   = Math.max(0, Math.min(state.semester - 1, 7));
-    const fullName = COURSE_NAMES[semIdx] ?? '';
     semName.innerHTML =
       '<span class="course-code">' + esc(state.semesterName ?? '') + '</span>' +
       ' <span class="course-title">' + esc(fullName) + '</span>';

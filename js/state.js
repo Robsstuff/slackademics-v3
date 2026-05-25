@@ -46,15 +46,16 @@ export function pairKey(a, b) {
 
 // ── Project targets table ─────────────────────────────────
 // [semesterIndex 0-7][playerCountIndex 0-5 = 3-8 players]
+// Base values +2 across the board for increased challenge
 export const PROJECT_TARGETS = [
-  [ 7, 10, 13, 16, 19, 22],  // Semester 1 — ENGL 1201
-  [ 8, 11, 14, 17, 20, 23],  // Semester 2 — ARTS 1202
-  [ 9, 12, 15, 18, 21, 24],  // Semester 3 — HIST 2303
-  [10, 13, 16, 20, 23, 26],  // Semester 4 — GEND 2304
-  [11, 14, 17, 22, 25, 28],  // Semester 5 — MATH 3305
-  [12, 16, 20, 24, 28, 32],  // Semester 6 — PHYS 3406
-  [13, 17, 21, 26, 30, 34],  // Semester 7 — CHEM 4407
-  [14, 18, 23, 28, 32, 36],  // Semester 8 — ENGG 4508
+  [ 9, 12, 15, 18, 21, 24],  // Semester 1 — ENGL 1201
+  [10, 13, 16, 19, 22, 25],  // Semester 2 — ARTS 1202
+  [11, 14, 17, 20, 23, 26],  // Semester 3 — HIST 2303
+  [12, 15, 18, 22, 25, 28],  // Semester 4 — GEND 2304
+  [13, 16, 19, 24, 27, 30],  // Semester 5 — MATH 3305
+  [14, 18, 22, 26, 30, 34],  // Semester 6 — PHYS 3406
+  [15, 19, 23, 28, 32, 36],  // Semester 7 — CHEM 4407
+  [16, 20, 25, 30, 34, 38],  // Semester 8 — ENGG 4508
 ];
 
 export const SEMESTER_NAMES = [
@@ -63,14 +64,14 @@ export const SEMESTER_NAMES = [
 ];
 
 export const COURSE_NAMES = [
-  'Intro to Academic Writing',
-  'Foundations of Visual Arts',
-  'World History Survey',
+  'English',
+  'Creative Arts',
+  'History',
   'Gender Studies',
-  'Advanced Calculus',
-  'Quantum Mechanics',
-  'Organic Chemistry',
-  'Engineering Capstone',
+  'Mathematics',
+  'Physics',
+  'Chemistry',
+  'Engineering',
 ];
 
 export function getTarget(semester, activeCount, difficulty = 1) {
@@ -170,14 +171,16 @@ function makePlayer(cfg) {
 
 // ── createState ───────────────────────────────────────────
 export function createState(playerConfigs, difficulty = 1) {
-  const playerOrder = playerConfigs.map(p => p.id);
+  // Build player map first (keep original order for lookup)
   const players = {};
-
   for (const cfg of playerConfigs) {
     const p = makePlayer(cfg);
     p.hand = STARTING_HAND_VALUES.map(v => makeCard(v));
     players[cfg.id] = p;
   }
+
+  // Randomise starting order so human is not always first
+  const playerOrder = shuffle(playerConfigs.map(p => p.id));
 
   const effortPool     = buildInitialPool();
   const leadershipDeck = shuffle([...LEADERSHIP_SKILLS]);
@@ -216,7 +219,7 @@ export function createState(playerConfigs, difficulty = 1) {
     faceDownSkill,
     chosenSkill:          null,
     chosenSkillWasFaceDown: false,
-    pendingSkillStep:     null,   // 'realign-pick-target' | null
+    pendingSkillStep:     null,   // 'realign-pick-target' | 'extra-credit-pick' | null
     skillEffects:         {},
     realignTargetId:      null,
 
@@ -228,6 +231,7 @@ export function createState(playerConfigs, difficulty = 1) {
     // ── Snitch chain ──────────────────────────────────────
     snitchCurrentId: null,
     snitchChain:     [],
+    snitchedThisTurn: [],        // playerIds already snitched this semester (can't be targeted twice)
 
     // ── Semester break draw ───────────────────────────────
     breakDrawOrder:   [],

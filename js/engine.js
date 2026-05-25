@@ -189,6 +189,28 @@ function awardExtraCredit(state, playerId) {
   return events;
 }
 
+// ── Leader awards extra credit to a chosen player ────────
+// Called after project passes via Let It Ride
+export function awardLeaderExtraCredit(state, { leaderId, recipientId }) {
+  if (state.pendingSkillStep !== 'extra-credit-pick')
+    throw new Error('No extra credit pick pending');
+  if (state.projectLeaderId !== leaderId)
+    throw new Error('Only the project leader can award extra credit');
+  const active = activePlayers(state);
+  if (!active.includes(recipientId) || recipientId === leaderId)
+    throw new Error('Invalid extra credit recipient');
+
+  state.pendingSkillStep = null;
+  state.activePlayerId   = null;
+
+  const events = awardExtraCredit(state, recipientId);
+  addLog(state, {
+    type: 'system',
+    text: `${state.players[leaderId].name} awards Extra Credit to ${state.players[recipientId].name}.`,
+  });
+  return events;
+}
+
 // ── Mark top party pile card for end-of-semester discard ──
 function markTopPartyForDiscard(state, playerId) {
   const pile = state.players[playerId].partyPile;
@@ -260,15 +282,17 @@ function resolveOutcome(state, events) {
     addLog(state, { type: 'pass', text: `Project PASSED — ${total} / ${effectiveTarget}!` });
 
     // Extra Credits — only when Let It Ride is used (no skill)
+    // Leader always gets one; leader then picks one other player to award
     if (!state.chosenSkill) {
       const leaderId = state.projectLeaderId;
       events.push(...awardExtraCredit(state, leaderId));
-      // Leader nominates the next active player
+      // Signal that the leader must now pick a second recipient
+      // (handled in main.js for human leaders, AI resolves immediately)
       const active = activePlayers(state);
       if (active.length > 1) {
-        const li = active.indexOf(leaderId);
-        const nominee = active[(li + 1) % active.length];
-        events.push(...awardExtraCredit(state, nominee));
+        state.pendingSkillStep = 'extra-credit-pick';
+        state.activePlayerId   = leaderId;
+        events.push(evt('EXTRA_CREDIT_PICK_NEEDED', { leaderId, options: active.filter(id => id !== leaderId) }));
       }
     }
 
@@ -685,6 +709,8 @@ export function snitchTarget(state, { snitcherId, targetId }) {
     throw new Error(`Not ${snitcherId}'s snitch turn`);
   if (targetId === snitcherId)
     throw new Error('Cannot snitch on yourself');
+  if ((state.snitchedThisTurn || []).includes(targetId))
+    throw new Error(`${state.players[targetId]?.name ?? targetId} has already been snitched this turn`);
 
   const events   = [];
   const snitcher = state.players[snitcherId];
@@ -712,6 +738,10 @@ export function snitchTarget(state, { snitcherId, targetId }) {
   });
 
   state.snitchChain.push({ snitcherId, targetId, tVal, sVal });
+
+  // Mark target as snitched — they cannot be targeted again this semester
+  if (!state.snitchedThisTurn) state.snitchedThisTurn = [];
+  if (!state.snitchedThisTurn.includes(targetId)) state.snitchedThisTurn.push(targetId);
 
   if (tVal >= sVal) {
     // Snitch succeeds — target card >= snitcher's card
@@ -819,6 +849,7 @@ export function semesterBreak(state) {
   state.blameVotersRemaining = [];
   state.snitchCurrentId      = null;
   state.snitchChain          = [];
+  state.snitchedThisTurn     = [];
   state.chosenSkill          = null;
   state.skillEffects         = {};
   state.pendingSkillStep     = null;
@@ -952,6 +983,7 @@ export function getAvailablePairKeys(state, playerId) {
   return POOL_PAIRS
     .map(([a, b]) => ({ key: pairKey(a, b), a, b }))
     .filter(({ key, a, b }) => {
+      if (key === 'copy+copy') return false;            // Copy pairs not available during break
       if (player.drawnPairs.includes(key)) return false;
       const count = v => pool.filter(c => c.value === v).length;
       if (a === b) return count(a) >= 2;

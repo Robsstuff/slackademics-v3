@@ -8,6 +8,7 @@ import {
   playPair, revealPhase, letItRide, useLeadershipSkill,
   completeRealignSkill, accusePlayer, castVote, skipBlame,
   snitchTarget, snitchPass, semesterBreak, drawPair,
+  awardLeaderExtraCredit,
   getValidActions, activePlayers, getAvailablePairKeys,
 }                                     from './engine.js';
 import { getAIAction }                from './ai.js';
@@ -102,6 +103,28 @@ function _advance() {
     }
 
     case 'BREAK': {
+      // If extra credit pick is pending, open overlay for human leader or auto for AI
+      if (_state.pendingSkillStep === 'extra-credit-pick') {
+        const leaderId = _state.projectLeaderId;
+        const leader   = _state.players[leaderId];
+        if (leader && !leader.isExpelled) {
+          if (leader.isHuman) {
+            setTimeout(() => _openExtraCreditOverlay(), 300);
+          } else {
+            const action = getAIAction(_state, leaderId);
+            if (action?.type === 'AWARD_EXTRA_CREDIT') {
+              setTimeout(() => {
+                try {
+                  _dispatchEvents(awardLeaderExtraCredit(_state, {
+                    leaderId, recipientId: action.recipientId,
+                  }));
+                } catch (e) { console.warn(e); }
+              }, AI_THINK_DELAY);
+            }
+          }
+        }
+        return;
+      }
       const human = _humanId ? _state.players[_humanId] : null;
       if (human && !human.isExpelled) return;   // human clicks Continue
       setTimeout(() => _dispatchEvents(semesterBreak(_state)), AI_THINK_DELAY);
@@ -175,6 +198,13 @@ async function _runAITurn(playerId) {
 
       case 'PICK_REALIGN_TARGET':
         events = completeRealignSkill(_state, action.targetId);
+        break;
+
+      case 'AWARD_EXTRA_CREDIT':
+        events = awardLeaderExtraCredit(_state, {
+          leaderId:    playerId,
+          recipientId: action.recipientId,
+        });
         break;
 
       case 'ACCUSE':
@@ -379,6 +409,35 @@ function _openRealignOverlay() {
 }
 
 // ─────────────────────────────────────────────────────────
+//  EXTRA CREDIT PICK  (human leader chooses recipient)
+// ─────────────────────────────────────────────────────────
+function _openExtraCreditOverlay() {
+  if (!_state || _state.pendingSkillStep !== 'extra-credit-pick') return;
+  if (_state.projectLeaderId !== _humanId) return;
+
+  // Remove any existing overlay
+  const existing = document.getElementById('ec-overlay');
+  if (existing) return;
+
+  const options = activePlayers(_state).filter(id => id !== _humanId);
+  const overlay = _createOverlay(
+    'ec-overlay',
+    'Award Extra Credit',
+    'The project passed! You already earned Extra Credit. Choose one other player to also receive Extra Credit.',
+    options,
+    id => {
+      overlay.remove();
+      let events;
+      try {
+        events = awardLeaderExtraCredit(_state, { leaderId: _humanId, recipientId: id });
+      } catch (err) { console.warn(err.message); return; }
+      _dispatchEvents(events);
+    }
+  );
+  document.body.appendChild(overlay);
+}
+
+// ─────────────────────────────────────────────────────────
 //  HUMAN BLAME
 // ─────────────────────────────────────────────────────────
 function _openBlameOverlay() {
@@ -430,7 +489,12 @@ function _openSnitchOverlay() {
   if (_state.phase !== 'SNITCH') return;
   if (_state.snitchCurrentId !== _humanId) return;
 
-  const targets = activePlayers(_state).filter(id => id !== _humanId);
+  const alreadySnitched = _state.snitchedThisTurn || [];
+  const targets = activePlayers(_state).filter(
+    id => id !== _humanId && !alreadySnitched.includes(id)
+  );
+  // If no targets remain, auto-pass
+  if (targets.length === 0) { _humanSnitchPass(); return; }
   const overlay = _createOverlay('snitch-overlay', 'Who are you snitching on?',
     'Their top Party Pile card will be revealed and compared to yours.',
     targets,

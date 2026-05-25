@@ -177,6 +177,24 @@
    SCREEN 3 — GAME
    ═══════════════════════════════════════════════════════ */
 
+/* ── Exam name banner (top of game header) ── */
+.exam-name-row {
+  display: flex; align-items: baseline; gap: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.exam-code {
+  font-family: var(--font-d); font-weight: 900; font-size: 15px;
+  letter-spacing: .10em; text-transform: uppercase;
+  color: var(--accent);
+}
+.exam-title {
+  font-family: var(--font-d); font-weight: 600; font-size: 18px;
+  letter-spacing: .03em; text-transform: uppercase;
+  color: var(--fg);
+}
+
 /* ── Game top bar ── */
 .game-hdr {
   position: sticky; top: 0; z-index: 50;
@@ -648,6 +666,8 @@
   .turn-name      { font-size: 14px; }
   .semester-name  { display: none; }  /* hidden on very small screens */
   .effort-bar-lbl { display: none; }   /* save space on small screens */
+  .exam-code      { font-size: 12px; }
+  .exam-title     { font-size: 14px; }
   .effort-bar-track { height: 20px; }
   .effort-bar-nums { font-size: 15px; min-width: 44px; }
 
