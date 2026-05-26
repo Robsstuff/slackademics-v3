@@ -161,11 +161,16 @@ async function _runAITurn(playerId) {
   const aiPlayer = _state.players[playerId];
   _showAIThinking(aiPlayer?.name ?? '');
 
-  const action = getAIAction(_state, playerId);
-  if (!action) { _hideAIThinking(); return; }
-
+  let action;
   let events = [];
   try {
+    action = getAIAction(_state, playerId);
+    if (!action) {
+      _hideAIThinking();
+      setTimeout(() => _advance(), 100);
+      return;
+    }
+
     switch (action.type) {
 
       case 'PLAY_PAIR':
@@ -266,6 +271,7 @@ async function _runAITurn(playerId) {
   } catch (err) {
     console.error('[main] AI action error:', err);
     _hideAIThinking();
+    setTimeout(() => _advance(), 300);
     return;
   }
 
@@ -273,6 +279,7 @@ async function _runAITurn(playerId) {
     _dispatchEvents(events);
   } else {
     _hideAIThinking();
+    setTimeout(() => _advance(), 100);
   }
 }
 
@@ -320,13 +327,19 @@ function _onHumanCardClick(partyCardId, projectCardId) {
     const nextId = _state.activePlayerId;
     const nextP  = nextId ? _state.players[nextId] : null;
     if (!nextP || nextP.isHuman || nextP.isExpelled) break;
-    const action = getAIAction(_state, nextId);
-    if (action?.type !== 'PLAY_PAIR') break;
+    let cascadeAction;
+    try {
+      cascadeAction = getAIAction(_state, nextId);
+    } catch (err) {
+      console.warn('[main] AI cascade getAIAction error:', err);
+      break;
+    }
+    if (cascadeAction?.type !== 'PLAY_PAIR') break;
     try {
       allEvents.push(...playPair(_state, {
         playerId:      nextId,
-        projectCardId: action.projectCardId,
-        partyCardId:   action.partyCardId,
+        projectCardId: cascadeAction.projectCardId,
+        partyCardId:   cascadeAction.partyCardId,
       }));
     } catch (err) {
       console.warn('[main] AI cascade error:', err.message);
