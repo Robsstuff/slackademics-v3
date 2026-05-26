@@ -205,7 +205,7 @@
       <div class="pile-zone">
         <div class="pile-meta">
           <span class="pile-target">Target: <strong>20</strong></span>
-          <span class="pool-badge">Pool: <strong>14</strong> left</span>
+          <span class="pool-badge" style="display:none">Pool: <strong>14</strong> left</span>
         </div>
 
         <!-- phase badge below meta -->
@@ -324,10 +324,13 @@
         </div>
       </div>
 
+      <!-- snitch info panel — shown during SNITCH phase for human player -->
+      <div id="snitch-info-panel" class="snitch-info-panel" style="display:none"></div>
+
       <!-- human player status: own party pile + score -->
       <div class="player-status-row" id="player-status-row">
         <div class="status-section">
-          <div class="status-lbl">Your Hidden Cards (0)</div>
+          <div class="status-lbl">Your Party Pile (0)</div>
           <div class="party-cards-row"><span class="party-empty">Empty</span></div>
         </div>
         <div class="status-score">
@@ -604,13 +607,14 @@ let players = [
 ];
 
 const AI_MODE_LABELS = {
-  regular:  'Regular',
-  greedy:   'Slacker',
-  nice:     'Keener',
-  asshole:  'Saboteur',
-  random:   'Chaotic',
-  sneaky:   'Sneaky',
-  gto:      'GTO',
+  play_to_win: 'Play To Win',
+  regular:     'Regular',
+  greedy:      'Slacker',
+  nice:        'Keener',
+  asshole:     'Saboteur',
+  random:      'Chaotic',
+  sneaky:      'Sneaky',
+  gto:         'GTO',
 };
 
 function renderLobby() {
@@ -666,7 +670,7 @@ function addPresetPlayer(name) {
   if (players.length >= 8) return;
   if (players.some(function(p) { return p.name === name; })) return;
   var init = name.slice(0, 2).toUpperCase();
-  players.push({ name: name, init: init, host: false, aiMode: 'regular' });
+  players.push({ name: name, init: init, host: false, aiMode: 'play_to_win' });
   renderLobby();
 }
 

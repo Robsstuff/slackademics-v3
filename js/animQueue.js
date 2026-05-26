@@ -27,6 +27,7 @@ import {
   renderEffortCounter,
   buildEffortCardHTML,
   renderPlayerStatus,
+  renderSnitchPanel,
   setSkillBonus,
 }                                          from './renderer.js';
 
@@ -258,6 +259,7 @@ export function buildStepsFromEvents(events, state) {
       renderControlBar(state, _humanId);
       renderLog(state);
       renderPlayerStatus(state, _humanId);
+      renderSnitchPanel(state, _humanId);
     },
   });
 
@@ -731,6 +733,7 @@ function _stepSnitchPhaseStart(ev, state) {
       renderPlayersBar(state);
       renderControlBar(state, _humanId);
       renderLog(state);
+      renderSnitchPanel(state, _humanId);
       const snitcher = ev.snitcherId ? state.players[ev.snitcherId] : null;
       _showBanner('snitch', `${snitcher?.name ?? '?'} can now start a Snitch chain`);
       setTimeout(() => _removeBanner(), 700);

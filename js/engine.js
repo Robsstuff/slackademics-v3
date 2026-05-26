@@ -383,6 +383,27 @@ export function playPair(state, { playerId, projectCardId, partyCardId }) {
   return events;
 }
 
+// ── Partial reveal total (no wrap-around for trailing copy) ──
+// Used during intermediate reveals so the counter accurately shows
+// only what has been determined. A trailing copy card means the
+// ×2 multiplier is pending — it will apply to the NEXT card when
+// revealed (or to the first card if it's the final pile card).
+function _partialRevealTotal(pile) {
+  let pendingMult = 1;
+  let total       = 0;
+  for (const card of pile) {
+    if (!card.revealed) continue;
+    if (card.type === 'copy') {
+      pendingMult *= 2;
+    } else {
+      total      += card.value * pendingMult;
+      pendingMult = 1;
+    }
+  }
+  // Don't wrap trailing pendingMult — that multiplier is still pending
+  return total;
+}
+
 // ── revealPhase ───────────────────────────────────────────
 // Reveals all project pile cards EXCEPT the last one.
 // Stops at DEADLINE when exactly 1 unrevealed card remains.
@@ -403,7 +424,10 @@ export function revealPhase(state) {
   const toReveal = unrevealed.slice(0, -1);
   for (const card of toReveal) {
     card.revealed = true;
-    const partialTotal = computePileTotal(state.projectPile.filter(c => c.revealed));
+    // Use forward-only partial total so copy cards don't prematurely
+    // wrap to multiply an earlier card — the ×2 visually applies to
+    // the next card revealed, not the first card in the pile.
+    const partialTotal = _partialRevealTotal(state.projectPile);
     events.push(evt('CARD_REVEALED', { card, runningTotal: partialTotal, target: state.projectTarget }));
     events.push(evt('EFFORT_UPDATED', { total: partialTotal, target: state.projectTarget }));
   }

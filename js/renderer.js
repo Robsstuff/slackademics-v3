@@ -5,6 +5,7 @@
 'use strict';
 
 import { EFFORT_IMGS, COURSE_NAMES, SEMESTER_NAMES, totalFails } from './state.js';
+import { computePileTotal, activePlayers } from './engine.js';
 
 // ── Card image base paths ─────────────────────────────────
 const EFFORT_BASE    = './cards/effort/';
@@ -698,14 +699,96 @@ export function renderPlayerStatus(state, humanId) {
     cards = '<span class="party-empty">Empty</span>';
   }
 
+  // Live score: party pile total + extra credit bonuses (same formula as final score)
+  const partyScore = computePileTotal(p.partyPile || []);
+  const ecBonus    = (p.extraCredits || 0) * 3;
+  const cleanBonus = (p.individualFails || 0) === 0 ? (p.extraCredits || 0) * 2 : 0;
+  const liveScore  = state.phase === 'GAMEOVER'
+    ? (p.academicPoints || 0)
+    : partyScore + ecBonus + cleanBonus;
+
   el.innerHTML =
     '<div class="status-section">' +
-      '<div class="status-lbl">Your Hidden Cards (' + (p.partyPile ? p.partyPile.length : 0) + ')</div>' +
+      '<div class="status-lbl">Your Party Pile (' + (p.partyPile ? p.partyPile.length : 0) + ')</div>' +
       '<div class="party-cards-row">' + cards + '</div>' +
     '</div>' +
     '<div class="status-score">' +
       '<div class="status-lbl">Your Score</div>' +
-      '<div class="status-pts">' + (p.academicPoints || 0) + '</div>' +
+      '<div class="status-pts">' + liveScore + '</div>' +
+    '</div>';
+}
+
+// ─────────────────────────────────────────────────────────
+//  SNITCH INFO PANEL
+// ─────────────────────────────────────────────────────────
+export function renderSnitchPanel(state, humanId) {
+  const panel = document.getElementById('snitch-info-panel');
+  if (!panel) return;
+
+  // Only show during SNITCH phase when it's the human's turn to snitch
+  if (state.phase !== 'SNITCH' || state.snitchCurrentId !== humanId) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  const p      = humanId ? state.players[humanId] : null;
+  if (!p) { panel.style.display = 'none'; return; }
+
+  panel.style.display = '';
+
+  // Human's own party card value
+  const myCard = p.partyPile[p.partyPile.length - 1];
+  const myVal  = myCard ? (myCard.type === 'effort' ? myCard.value : 0) : 0;
+  const myDisp = myCard ? (myCard.type === 'copy' ? 'X2' : myCard.value) : '?';
+
+  // Infer other active players' party cards from their project pile cards
+  const alreadySnitched = state.snitchedThisTurn || [];
+  const others          = activePlayers(state).filter(id => id !== humanId);
+
+  let countGe  = 0;
+  const otherCards = [];
+  for (const id of others) {
+    const projCard = state.projectPile.find(c => c.playerId === id);
+    let inferredVal  = 4;   // fallback estimate
+    let displayVal   = '?';
+    if (projCard && projCard.revealed) {
+      if (projCard.type === 'effort') {
+        inferredVal = Math.max(0, 8 - projCard.value);
+        displayVal  = inferredVal;
+      } else {
+        inferredVal = 0;
+        displayVal  = 'X2';
+      }
+    }
+    if (inferredVal >= myVal) countGe++;
+    const eligible = !alreadySnitched.includes(id);
+    otherCards.push({ displayVal, inferredVal, eligible });
+  }
+
+  // Sort descending for display
+  otherCards.sort((a, b) => b.inferredVal - a.inferredVal);
+
+  const pct = others.length > 0 ? Math.round((countGe / others.length) * 100) : 0;
+
+  let cardsHtml = `<div class="snitch-card-chip mine" title="Your party card">${esc(String(myDisp))}</div>`;
+  for (const c of otherCards) {
+    const cls = c.eligible ? 'snitch-card-chip other' : 'snitch-card-chip other ineligible';
+    cardsHtml += `<div class="${cls}">${esc(String(c.displayVal))}</div>`;
+  }
+
+  const eligibleCount = others.filter(id => !alreadySnitched.includes(id)).length;
+
+  panel.innerHTML =
+    '<div class="snitch-panel-hdr">Snitch Window</div>' +
+    '<div class="snitch-panel-cards">' + cardsHtml + '</div>' +
+    '<div class="snitch-panel-pct">' +
+      '<span class="snitch-pct-val">' + pct + '%</span>' +
+      '<span class="snitch-pct-lbl"> correct snitch chance</span>' +
+    '</div>' +
+    '<div class="snitch-panel-note">' +
+      (eligibleCount > 0
+        ? eligibleCount + ' player' + (eligibleCount !== 1 ? 's' : '') + ' can be snitched'
+        : 'No eligible targets — you must pass') +
     '</div>';
 }
 

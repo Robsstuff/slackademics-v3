@@ -76,9 +76,9 @@ function _actionPlaying(state, playerId, player) {
   const pairs = _findAllPairs(hand);
   if (pairs.length === 0) return null;
 
-  // Universal Copy-pair pre-check (20% chance)
+  // Universal Copy-pair pre-check (20% chance) — skip for play_to_win which has its own copy logic
   const copyPairs = pairs.filter(([a, b]) => a.type === 'copy' && b.type === 'copy');
-  if (copyPairs.length > 0 && Math.random() < 0.20) {
+  if (player.aiMode !== 'play_to_win' && copyPairs.length > 0 && Math.random() < 0.20) {
     const [c1, c2] = copyPairs[0];
     return { type: 'PLAY_PAIR', projectCardId: c1.id, partyCardId: c2.id };
   }
@@ -255,6 +255,75 @@ function _choosePair(state, playerId, player, pairs) {
       if (!validPair) return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
       const [pa, pb] = validPair;
       return { projectCard: pa.id === chosen.id ? pa : pb, partyCard: pa.id === chosen.id ? pb : pa };
+    }
+
+    // ── PLAY TO WIN: probability-based optimiser ─────────
+    case 'play_to_win': {
+      const myFails    = totalFails(player);
+      const effortPairs = pairs.filter(([a, b]) => a.type === 'effort' && b.type === 'effort');
+
+      // Helper: play a chosen card to project, its pair partner to party
+      const splitOn = (chosen, pairList) => {
+        const vp = pairList.find(([a, b]) => a.id === chosen.id || b.id === chosen.id);
+        if (!vp) return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
+        const [pa, pb] = vp;
+        return { projectCard: pa.id === chosen.id ? pa : pb, partyCard: pa.id === chosen.id ? pb : pa };
+      };
+
+      // 4-fail override: must contribute ≥ avg to avoid expulsion risk
+      if (myFails >= 4) {
+        const qualifying = effortPairs.length > 0
+          ? effortPairs.filter(([a, b]) => Math.max(a.value, b.value) >= avg)
+          : pairs.filter(([a, b]) => {
+            const aVal = a.type === 'effort' ? a.value : 0;
+            const bVal = b.type === 'effort' ? b.value : 0;
+            return Math.max(aVal, bVal) >= avg;
+          });
+        const [c1, c2] = qualifying.length > 0 ? pick(qualifying) : pick(pairs);
+        const hi = (c1.type === 'effort' && c2.type === 'effort')
+          ? (c1.value >= c2.value ? c1 : c2)
+          : (c1.type === 'effort' ? c1 : c2);
+        return { projectCard: hi, partyCard: hi === c1 ? c2 : c1 };
+      }
+
+      // Post-copy turn: 70% greedy (lowest to project = keep highest for party)
+      if (player._ptwPlayedCopy) {
+        player._ptwPlayedCopy = false;
+        if (Math.random() < 0.70 && effortPairs.length > 0) {
+          const allEffort = effortPairs.flat().sort((a, b) => a.value - b.value);
+          const lo = allEffort[0];
+          return splitOn(lo, effortPairs);
+        }
+      }
+
+      // 25% chance to play copy pair if available
+      if (copyPairs.length > 0 && Math.random() < 0.25) {
+        player._ptwPlayedCopy = true;
+        const [c1, c2] = copyPairs[0];
+        return { projectCard: c1, partyCard: c2 };
+      }
+
+      if (effortPairs.length === 0) {
+        return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
+      }
+
+      const allEffort = effortPairs.flat().sort((a, b) => a.value - b.value);
+      const roll = Math.random() * 100;
+
+      if (roll < 15) {
+        // 15%: play lowest to project (maximise party pile)
+        return splitOn(allEffort[0], effortPairs);
+      } else if (roll < 25) {
+        // 10%: play above-avg to project
+        const aboveAvg = allEffort.filter(c => c.value > avg);
+        const chosen   = aboveAvg.length > 0 ? pick(aboveAvg) : allEffort[allEffort.length - 1];
+        return splitOn(chosen, effortPairs);
+      } else {
+        // 75%: play at/below-avg to project
+        const atBelow = allEffort.filter(c => c.value <= avg);
+        const chosen  = atBelow.length > 0 ? pick(atBelow) : allEffort[0];
+        return splitOn(chosen, effortPairs);
+      }
     }
 
     default: {
@@ -436,6 +505,22 @@ function _actionSnitch(state, playerId, player) {
   const others = activePlayers(state).filter(id => id !== playerId && !alreadySnitched.includes(id));
   // If no eligible targets, pass
   if (others.length === 0) return { type: 'SNITCH_PASS' };
+
+  // ── Play To Win: deterministic probability from inferred cards ──
+  if (player.aiMode === 'play_to_win') {
+    let countGe = 0;
+    for (const id of others) {
+      const projCard = state.projectPile.find(c => c.playerId === id);
+      let inferredVal = 4;
+      if (projCard && projCard.revealed && projCard.type === 'effort') {
+        inferredVal = Math.max(0, 8 - projCard.value);
+      }
+      if (inferredVal >= myVal) countGe++;
+    }
+    const pSnitch = countGe / Math.max(1, others.length) + 0.05;
+    if (Math.random() < pSnitch) return _pickSnitchTarget(state, playerId, player, others);
+    return { type: 'SNITCH_PASS' };
+  }
 
   let confirmedAbove = 0;
   let confirmedEqual = 0;
