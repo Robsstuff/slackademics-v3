@@ -259,7 +259,8 @@ function _choosePair(state, playerId, player, pairs) {
 
     // ── PLAY TO WIN: probability-based optimiser ─────────
     case 'play_to_win': {
-      const myFails    = totalFails(player);
+      const myFails     = totalFails(player);
+      const copyPairs   = pairs.filter(([a, b]) => a.type === 'copy' && b.type === 'copy');
       const effortPairs = pairs.filter(([a, b]) => a.type === 'effort' && b.type === 'effort');
 
       // Helper: play a chosen card to project, its pair partner to party
