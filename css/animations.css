@@ -3,6 +3,17 @@
    All @keyframes + animation utility classes
    ===================================================== */
 
+/* ── Instant / no-animation mode ────────────────────── */
+/* When window._slk_anim === false, JS adds this class to <body> */
+body.no-anim *,
+body.no-anim *::before,
+body.no-anim *::after {
+  animation-duration:   0ms !important;
+  animation-delay:      0ms !important;
+  transition-duration:  0ms !important;
+  transition-delay:     0ms !important;
+}
+
 /* ── Card arc (play card to project or party pile) ──── */
 @keyframes card-arc {
   0%   { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }

@@ -60,6 +60,8 @@ export async function run() {
   _isRunning = true;
   _lockUI(true);
 
+  const fastMode = window._slk_anim === false;
+
   while (_queue.length > 0) {
     const step = _queue.shift();
     try {
@@ -67,7 +69,8 @@ export async function run() {
     } catch (err) {
       console.error(`[AnimQueue] step "${step.label}" threw:`, err);
     }
-    const wait = Math.max(0, (step.duration ?? 0) - (step.overlap ?? 0));
+    // In fast mode skip all waits so the game advances instantly
+    const wait = fastMode ? 0 : Math.max(0, (step.duration ?? 0) - (step.overlap ?? 0));
     if (wait > 0) await sleep(wait);
   }
 

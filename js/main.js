@@ -35,6 +35,8 @@ let _lobbyDifficulty = 1.0;  // set from lobby difficulty buttons
 let _stagedProject = null;  // card id
 let _stagedParty   = null;  // card id
 
+// Returns 0 in fast (no-animation) mode, otherwise the given ms
+const _delay = ms => window._slk_anim === false ? 0 : ms;
 const AI_THINK_DELAY = 300;
 
 // ─────────────────────────────────────────────────────────
@@ -80,7 +82,7 @@ export function startGame(lobbyPlayers) {
 
   renderAll(_state, _humanId);
   _goScreen('game');
-  setTimeout(() => _advance(), 400);
+  setTimeout(() => _advance(), _delay(400));
 }
 
 // ─────────────────────────────────────────────────────────
@@ -97,8 +99,8 @@ function _advance() {
       return;
 
     case 'REVEAL': {
-      // Auto-reveal after a short pause so players can see the pile
-      setTimeout(() => _dispatchEvents(revealPhase(_state)), 900);
+      // Auto-reveal (pause skipped in fast mode)
+      setTimeout(() => _dispatchEvents(revealPhase(_state)), _delay(900));
       return;
     }
 
@@ -109,7 +111,7 @@ function _advance() {
         const leader   = _state.players[leaderId];
         if (leader && !leader.isExpelled) {
           if (leader.isHuman) {
-            setTimeout(() => _openExtraCreditOverlay(), 300);
+            setTimeout(() => _openExtraCreditOverlay(), _delay(300));
           } else {
             const action = getAIAction(_state, leaderId);
             if (action?.type === 'AWARD_EXTRA_CREDIT') {
@@ -119,7 +121,7 @@ function _advance() {
                     leaderId, recipientId: action.recipientId,
                   }));
                 } catch (e) { console.warn(e); }
-              }, AI_THINK_DELAY);
+              }, _delay(AI_THINK_DELAY));
             }
           }
         }
@@ -127,7 +129,7 @@ function _advance() {
       }
       const human = _humanId ? _state.players[_humanId] : null;
       if (human && !human.isExpelled) return;   // human clicks Continue
-      setTimeout(() => _dispatchEvents(semesterBreak(_state)), AI_THINK_DELAY);
+      setTimeout(() => _dispatchEvents(semesterBreak(_state)), _delay(AI_THINK_DELAY));
       return;
     }
   }
@@ -143,7 +145,7 @@ function _advance() {
   if (active.isHuman) return;
 
   // AI turn — instant in PLAYING phase (cards fly together after human plays)
-  const playDelay = _state.phase === 'PLAYING' ? 0 : AI_THINK_DELAY;
+  const playDelay = _state.phase === 'PLAYING' ? 0 : _delay(AI_THINK_DELAY);
   setTimeout(() => _runAITurn(activeId), playDelay);
 }
 
@@ -159,7 +161,7 @@ async function _runAITurn(playerId) {
   if (!_state || queueBusy()) return;
 
   const aiPlayer = _state.players[playerId];
-  _showAIThinking(aiPlayer?.name ?? '');
+  if (window._slk_anim !== false) _showAIThinking(aiPlayer?.name ?? '');
 
   let action;
   let events = [];
@@ -399,7 +401,7 @@ function _humanUseSkill(choice) {
   // If Realign Priorities, open target picker overlay
   if (_state.pendingSkillStep === 'realign-pick-target') {
     _dispatchEvents(events);
-    setTimeout(() => _openRealignOverlay(), 200);
+    setTimeout(() => _openRealignOverlay(), _delay(200));
     return;
   }
   _dispatchEvents(events);

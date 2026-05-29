@@ -120,7 +120,10 @@ function calcSkillBonus(state, skill, wasFaceDown) {
       return 0;   // handled via targetBonus
     }
     case 'eureka': return wasFaceDown ? 10 : 5;
-    case 'desperation': return (state.projectsFailed || 0) * 1;
+    case 'desperation': {
+      const leader = state.players[state.projectLeaderId];
+      return totalFails(leader) * 2;
+    }
     default: return 0;
   }
 }
@@ -160,14 +163,17 @@ function applyGroupFail(state) {
 }
 
 // ── Check if a player should be expelled ─────────────────
+// Expulsion is DEFERRED to semester break so the player can finish
+// the current round (avoid freezing blame / snitch chains mid-round).
 function checkExpulsion(state, playerId, events) {
   const p = state.players[playerId];
-  if (totalFails(p) >= FAIL_LIMIT && !p.isExpelled) {
-    p.isExpelled = true;
-    events.push(evt('PLAYER_EXPELLED', { playerId }));
+  if (totalFails(p) >= FAIL_LIMIT && !p.isExpelled && !p.pendingExpulsion) {
+    p.pendingExpulsion = true;
+    // Log immediately so the game log is accurate, but don't set isExpelled
+    // yet — that happens at the start of semesterBreak.
     addLog(state, {
       type: 'expel',
-      text: `${p.name} has been EXPELLED (${FAIL_LIMIT} fails).`,
+      text: `${p.name} has reached ${FAIL_LIMIT} fails — EXPELLED at end of round.`,
       playerId,
     });
   }
@@ -578,7 +584,8 @@ export function accusePlayer(state, { accuserId, accusedId }) {
     throw new Error('Only the Project Leader can accuse');
   if (accusedId === accuserId)
     throw new Error('Cannot accuse yourself');
-  if (state.players[accusedId]?.isExpelled)
+  const accusedPlayer = state.players[accusedId];
+  if (accusedPlayer?.isExpelled || accusedPlayer?.pendingExpulsion)
     throw new Error('Cannot accuse an expelled player');
 
   const events = [];
@@ -855,6 +862,21 @@ export function semesterBreak(state) {
     throw new Error(`semesterBreak called in phase ${state.phase}`);
 
   const events = [];
+
+  // ── Finalise any deferred expulsions from this round ────
+  for (const id of state.playerOrder) {
+    const p = state.players[id];
+    if (p.pendingExpulsion && !p.isExpelled) {
+      p.isExpelled      = true;
+      p.pendingExpulsion = false;
+      events.push(evt('PLAYER_EXPELLED', { playerId: id }));
+      addLog(state, {
+        type: 'expel',
+        text: `${p.name} has been EXPELLED (${FAIL_LIMIT} fails).`,
+        playerId: id,
+      });
+    }
+  }
 
   if (state.semester >= state.totalSemesters) {
     _computeFinalScores(state);

@@ -114,6 +114,21 @@
       </div>
     </div>
 
+    <!-- Speed / animation toggle -->
+    <div class="lobby-section">
+      <div class="sec-lbl">Game Speed</div>
+      <div class="diff-btns" id="speed-btns">
+        <button class="diff-btn active" id="btn-anim-on" onclick="setAnimMode(true)">
+          <span class="diff-name">Animated</span>
+          <span class="diff-desc">Full animations &amp; AI timing</span>
+        </button>
+        <button class="diff-btn" id="btn-anim-off" onclick="setAnimMode(false)">
+          <span class="diff-name">Instant</span>
+          <span class="diff-desc">No delays — fast bulk testing</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Players list -->
     <div class="lobby-section">
       <div class="sec-lbl">Players (<span id="pc-label">1</span>)</div>
@@ -764,7 +779,16 @@ document.getElementById('start-game-btn').addEventListener('click', function(e) 
 </script>
 
 <script>
-window._slk_diff = 1.0;  // fallback store, read by main.js if __slk not yet ready
+window._slk_diff = 1.0;   // fallback store, read by main.js if __slk not yet ready
+window._slk_anim = true;  // true = animated, false = instant (for bulk testing)
+
+function setAnimMode(on) {
+  window._slk_anim = on;
+  document.body.classList.toggle('no-anim', !on);
+  document.getElementById('btn-anim-on').classList.toggle('active', on);
+  document.getElementById('btn-anim-off').classList.toggle('active', !on);
+}
+
 function setLobbyDiff(btn) {
   document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');

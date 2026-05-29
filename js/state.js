@@ -106,7 +106,7 @@ export const LEADERSHIP_SKILLS = [
   { id:'eureka',     name:'Eureka!', img:'Eureka.jpg',
     desc:'+5 Effort. Additional +5 if this card was chosen face-down.' },
   { id:'desperation',name:'Desperation', img:'Desperation.jpg',
-    desc:'+1 Effort for each project the group has failed.' },
+    desc:'+2 Effort for each Fail token currently held by the Project Leader.' },
 ];
 
 // ── Card factory ──────────────────────────────────────────
@@ -166,6 +166,9 @@ function makePlayer(cfg) {
     drawnPairs:       [],   // pair keys already drawn: ['0+8', 'copy+copy', ...]
 
     academicPoints: 0,
+
+    // Expulsion is deferred until semester break so players can finish the round
+    pendingExpulsion: false,
   };
 }
 

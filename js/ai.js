@@ -259,71 +259,84 @@ function _choosePair(state, playerId, player, pairs) {
 
     // ── PLAY TO WIN: probability-based optimiser ─────────
     case 'play_to_win': {
-      const myFails     = totalFails(player);
-      const copyPairs   = pairs.filter(([a, b]) => a.type === 'copy' && b.type === 'copy');
-      const effortPairs = pairs.filter(([a, b]) => a.type === 'effort' && b.type === 'effort');
+      const myFails = totalFails(player);
 
-      // Helper: play a chosen card to project, its pair partner to party
-      const splitOn = (chosen, pairList) => {
-        const vp = pairList.find(([a, b]) => a.id === chosen.id || b.id === chosen.id);
-        if (!vp) return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
-        const [pa, pb] = vp;
-        return { projectCard: pa.id === chosen.id ? pa : pb, partyCard: pa.id === chosen.id ? pb : pa };
-      };
-
-      // 4-fail override: must contribute ≥ avg to avoid expulsion risk
-      if (myFails >= 4) {
-        const qualifying = effortPairs.length > 0
-          ? effortPairs.filter(([a, b]) => Math.max(a.value, b.value) >= avg)
-          : pairs.filter(([a, b]) => {
-            const aVal = a.type === 'effort' ? a.value : 0;
-            const bVal = b.type === 'effort' ? b.value : 0;
-            return Math.max(aVal, bVal) >= avg;
-          });
-        const [c1, c2] = qualifying.length > 0 ? pick(qualifying) : pick(pairs);
-        const hi = (c1.type === 'effort' && c2.type === 'effort')
-          ? (c1.value >= c2.value ? c1 : c2)
-          : (c1.type === 'effort' ? c1 : c2);
-        return { projectCard: hi, partyCard: hi === c1 ? c2 : c1 };
+      // Separate pairs by type using explicit loops (avoids any flat/filter edge cases)
+      const cpPairs = [];   // copy+copy pairs
+      const epPairs = [];   // effort+effort pairs
+      for (let pi = 0; pi < pairs.length; pi++) {
+        const pa = pairs[pi][0];
+        const pb = pairs[pi][1];
+        if (pa.type === 'copy' && pb.type === 'copy')     cpPairs.push(pairs[pi]);
+        else if (pa.type === 'effort' && pb.type === 'effort') epPairs.push(pairs[pi]);
       }
 
-      // Post-copy turn: 70% greedy (lowest to project = keep highest for party)
+      // Helper: given a target card, find its pair and route it to project
+      // (the other card in that pair goes to party)
+      const splitOn = (targetCard) => {
+        for (let pi = 0; pi < epPairs.length; pi++) {
+          const pa = epPairs[pi][0];
+          const pb = epPairs[pi][1];
+          if (pa.id === targetCard.id) return { projectCard: pa, partyCard: pb };
+          if (pb.id === targetCard.id) return { projectCard: pb, partyCard: pa };
+        }
+        // Fallback: first available pair
+        return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
+      };
+
+      // Flatten all effort cards from epPairs into a sorted array (low → high)
+      const flatEffort = [];
+      for (let pi = 0; pi < epPairs.length; pi++) {
+        flatEffort.push(epPairs[pi][0]);
+        flatEffort.push(epPairs[pi][1]);
+      }
+      flatEffort.sort((a, b) => a.value - b.value);
+
+      // ── 4-fail override: must play highest available card to project ──
+      if (myFails >= 4) {
+        if (flatEffort.length === 0) return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
+        return splitOn(flatEffort[flatEffort.length - 1]);
+      }
+
+      // ── Post-copy turn: 70% chance to go greedy (lowest to project) ──
       if (player._ptwPlayedCopy) {
         player._ptwPlayedCopy = false;
-        if (Math.random() < 0.70 && effortPairs.length > 0) {
-          const allEffort = effortPairs.flat().sort((a, b) => a.value - b.value);
-          const lo = allEffort[0];
-          return splitOn(lo, effortPairs);
+        if (Math.random() < 0.70 && flatEffort.length > 0) {
+          return splitOn(flatEffort[0]);   // lowest to project, keeps highest for party
         }
       }
 
-      // 25% chance to play copy pair if available
-      if (copyPairs.length > 0 && Math.random() < 0.25) {
+      // ── 25% chance to play copy pair if available ──────────────────
+      if (cpPairs.length > 0 && Math.random() < 0.25) {
         player._ptwPlayedCopy = true;
-        const [c1, c2] = copyPairs[0];
-        return { projectCard: c1, partyCard: c2 };
+        return { projectCard: cpPairs[0][0], partyCard: cpPairs[0][1] };
       }
 
-      if (effortPairs.length === 0) {
+      // ── No effort pairs? use first available pair ───────────────────
+      if (flatEffort.length === 0) {
         return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
       }
 
-      const allEffort = effortPairs.flat().sort((a, b) => a.value - b.value);
+      // ── Main probabilistic selection ────────────────────────────────
       const roll = Math.random() * 100;
 
       if (roll < 15) {
-        // 15%: play lowest to project (maximise party pile)
-        return splitOn(allEffort[0], effortPairs);
+        // 15% — greedy: lowest card to project
+        return splitOn(flatEffort[0]);
       } else if (roll < 25) {
-        // 10%: play above-avg to project
-        const aboveAvg = allEffort.filter(c => c.value > avg);
-        const chosen   = aboveAvg.length > 0 ? pick(aboveAvg) : allEffort[allEffort.length - 1];
-        return splitOn(chosen, effortPairs);
+        // 10% — contribute above average
+        let card = flatEffort[flatEffort.length - 1];   // fallback: highest
+        for (let i = flatEffort.length - 1; i >= 0; i--) {
+          if (flatEffort[i].value > avg) { card = flatEffort[i]; break; }
+        }
+        return splitOn(card);
       } else {
-        // 75%: play at/below-avg to project
-        const atBelow = allEffort.filter(c => c.value <= avg);
-        const chosen  = atBelow.length > 0 ? pick(atBelow) : allEffort[0];
-        return splitOn(chosen, effortPairs);
+        // 75% — at or below average (standard slacking)
+        let card = flatEffort[0];   // fallback: lowest
+        for (let i = 0; i < flatEffort.length; i++) {
+          if (flatEffort[i].value <= avg) { card = flatEffort[i]; }
+        }
+        return splitOn(card);
       }
     }
 
@@ -381,7 +394,10 @@ function _estimateSkillBonus(state, skill, wasFaceDown) {
     case 'coffee': return pile.filter(c => c.type === 'effort' && c.value <= 3).length * 2;
     case 'vibe': return 4;         // assume at least one pair
     case 'eureka': return 5;
-    case 'desperation': return (state.projectsFailed || 0) * 1;
+    case 'desperation': {
+      const ldr = state.players[state.projectLeaderId];
+      return ldr ? totalFails(ldr) * 2 : 0;
+    }
     case 'curve': return 6;
     case 'complain': return 8 - 4; // removes ~2 × avg 2 = 4, adds 8 → net +4
     case 'evenodds': return 2;
