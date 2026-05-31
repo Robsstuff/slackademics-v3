@@ -756,8 +756,9 @@ export function snitchTarget(state, { snitcherId, targetId }) {
   targetTop.revealed = true;
 
   const snitcherTop = snitcher.partyPile[snitcher.partyPile.length - 1];
-  const sVal = snitcherTop ? (snitcherTop.type === 'effort' ? snitcherTop.value : 0) : 0;
-  const tVal = targetTop.type === 'effort' ? targetTop.value : 0;
+  // Copy cards count as 9 for snitch comparisons (beats every effort card 0-8)
+  const sVal = snitcherTop ? (snitcherTop.type === 'effort' ? snitcherTop.value : 9) : 0;
+  const tVal = targetTop.type === 'effort' ? targetTop.value : 9;
 
   events.push(evt('SNITCH_REVEALED', {
     snitcherId, targetId, targetCard: targetTop, snitcherValue: sVal,

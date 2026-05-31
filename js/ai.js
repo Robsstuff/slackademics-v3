@@ -515,24 +515,26 @@ function _actionVote(state, playerId, player) {
 
 function _actionSnitch(state, playerId, player) {
   const myPartyTop = player.partyPile[player.partyPile.length - 1];
-  const myVal      = myPartyTop ? (myPartyTop.type === 'effort' ? myPartyTop.value : 0) : 0;
+  // Copy cards count as 9 for snitch (beat all effort cards 0-8)
+  const myVal      = myPartyTop ? (myPartyTop.type === 'effort' ? myPartyTop.value : 9) : 0;
 
   // Collect eligible targets (not already snitched this turn)
   const alreadySnitched = state.snitchedThisTurn || [];
   const others = activePlayers(state).filter(id => id !== playerId && !alreadySnitched.includes(id));
-  // If no eligible targets, pass
   if (others.length === 0) return { type: 'SNITCH_PASS' };
+
+  // Helper: infer a player's party card value from their revealed project card
+  const inferPartyVal = id => {
+    const proj = state.projectPile.find(c => c.playerId === id);
+    if (!proj || !proj.revealed) return 4;      // unknown — use midpoint estimate
+    return proj.type === 'effort' ? Math.max(0, 8 - proj.value) : 9;  // copy → 9
+  };
 
   // ── Play To Win: deterministic probability from inferred cards ──
   if (player.aiMode === 'play_to_win') {
     let countGe = 0;
     for (const id of others) {
-      const projCard = state.projectPile.find(c => c.playerId === id);
-      let inferredVal = 4;
-      if (projCard && projCard.revealed && projCard.type === 'effort') {
-        inferredVal = Math.max(0, 8 - projCard.value);
-      }
-      if (inferredVal >= myVal) countGe++;
+      if (inferPartyVal(id) >= myVal) countGe++;
     }
     const pSnitch = countGe / Math.max(1, others.length) + 0.05;
     if (Math.random() < pSnitch) return _pickSnitchTarget(state, playerId, player, others);
@@ -544,10 +546,11 @@ function _actionSnitch(state, playerId, player) {
   let estimatedAbove = 0;
 
   for (const id of others) {
-    const projCard = state.projectPile.find(c => c.playerId === id);
-    if (projCard && projCard.revealed && projCard.type === 'effort') {
-      const inferred = Math.max(0, 8 - projCard.value);
-      if (inferred > myVal)  confirmedAbove += 1;
+    const proj = state.projectPile.find(c => c.playerId === id);
+    if (proj && proj.revealed) {
+      // Revealed card: use exact inferred value (copy counts as 9)
+      const inferred = proj.type === 'effort' ? Math.max(0, 8 - proj.value) : 9;
+      if (inferred > myVal)       confirmedAbove += 1;
       else if (inferred === myVal) confirmedEqual += 1;
     } else {
       // Unknown — estimate 0.5 probability of being above or equal
@@ -585,9 +588,9 @@ function _pickSnitchTarget(state, playerId, player, others) {
 
   for (const id of eligible) {
     const projCard = state.projectPile.find(c => c.playerId === id);
-    let inferred = 4; // default estimate
-    if (projCard && projCard.revealed && projCard.type === 'effort') {
-      inferred = Math.max(0, 8 - projCard.value);
+    let inferred = 4; // default estimate for unrevealed cards
+    if (projCard && projCard.revealed) {
+      inferred = projCard.type === 'effort' ? Math.max(0, 8 - projCard.value) : 9;
     }
     if (inferred > bestVal) { bestVal = inferred; bestId = id; }
   }

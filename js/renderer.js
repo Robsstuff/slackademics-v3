@@ -737,38 +737,42 @@ export function renderSnitchPanel(state, humanId) {
   panel.style.display = '';
 
   // Human's own party card value
+  // Copy cards count as 9 for snitch comparisons (beat all effort cards 0-8)
   const myCard = p.partyPile[p.partyPile.length - 1];
-  const myVal  = myCard ? (myCard.type === 'effort' ? myCard.value : 0) : 0;
+  const myVal  = myCard ? (myCard.type === 'effort' ? myCard.value : 9) : 0;
   const myDisp = myCard ? (myCard.type === 'copy' ? 'X2' : myCard.value) : '?';
 
   // Infer other active players' party cards from their project pile cards
   const alreadySnitched = state.snitchedThisTurn || [];
   const others          = activePlayers(state).filter(id => id !== humanId);
 
-  let countGe  = 0;
+  let countGe  = 0;   // eligible targets whose inferred value >= myVal
   const otherCards = [];
   for (const id of others) {
-    const projCard = state.projectPile.find(c => c.playerId === id);
-    let inferredVal  = 4;   // fallback estimate
-    let displayVal   = '?';
+    const projCard  = state.projectPile.find(c => c.playerId === id);
+    let inferredVal = 4;    // fallback for unrevealed cards
+    let displayVal  = '?';
     if (projCard && projCard.revealed) {
       if (projCard.type === 'effort') {
         inferredVal = Math.max(0, 8 - projCard.value);
         displayVal  = inferredVal;
       } else {
-        inferredVal = 0;
+        // Copy project card → copy party card (snitch value 9)
+        inferredVal = 9;
         displayVal  = 'X2';
       }
     }
-    if (inferredVal >= myVal) countGe++;
     const eligible = !alreadySnitched.includes(id);
+    // Percentage is over ELIGIBLE targets only (can't snitch already-snitched players)
+    if (eligible && inferredVal >= myVal) countGe++;
     otherCards.push({ displayVal, inferredVal, eligible });
   }
 
   // Sort descending for display
   otherCards.sort((a, b) => b.inferredVal - a.inferredVal);
 
-  const pct = others.length > 0 ? Math.round((countGe / others.length) * 100) : 0;
+  const eligibleCount = others.filter(id => !alreadySnitched.includes(id)).length;
+  const pct = eligibleCount > 0 ? Math.round((countGe / eligibleCount) * 100) : 0;
 
   let cardsHtml = `<div class="snitch-card-chip mine" title="Your party card">${esc(String(myDisp))}</div>`;
   for (const c of otherCards) {

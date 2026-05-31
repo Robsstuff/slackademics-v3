@@ -20,11 +20,11 @@ export const CARD_NAMES = {
   8:'All In',      copy:'X2 Copy',
 };
 
-// Image filenames relative to ../CARDS/Effort Cards/
+// Image filenames for ./cards/effort/ (new artwork, compressed for web)
 export const EFFORT_IMGS = {
-  0:'Effort 0.jpg', 1:'Effort 1.jpg', 2:'Effort 2.jpg', 3:'Effort 3.jpg',
-  4:'Effort 4.jpg', 5:'Effort 5.jpg', 6:'Effort 6 Edit 1.jpg',
-  7:'Effort 7.jpg', 8:'Effort 8.jpg', copy:'Copy.jpg',
+  0:'0.jpg', 1:'1.jpg', 2:'2.jpg', 3:'3.jpg',
+  4:'4.jpg', 5:'5.jpg', 6:'6.jpg', 7:'7.jpg',
+  8:'8.jpg', copy:'Copy.jpg',
 };
 
 // ── Fixed starting hand ───────────────────────────────────
