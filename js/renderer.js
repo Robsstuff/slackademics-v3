@@ -780,8 +780,6 @@ export function renderSnitchPanel(state, humanId) {
     cardsHtml += `<div class="${cls}">${esc(String(c.displayVal))}</div>`;
   }
 
-  const eligibleCount = others.filter(id => !alreadySnitched.includes(id)).length;
-
   panel.innerHTML =
     '<div class="snitch-panel-hdr">Snitch Window</div>' +
     '<div class="snitch-panel-cards">' + cardsHtml + '</div>' +
