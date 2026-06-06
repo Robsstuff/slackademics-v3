@@ -569,7 +569,7 @@ export function openBreakDrawOverlay() {
   overlay.innerHTML = `
     <div class="overlay-sheet">
       <div class="overlay-title">Draw a New Pair</div>
-      <div class="overlay-body">Choose one pair to add to your hand. You cannot pick the same pair twice.</div>
+      <div class="overlay-body">Choose one pair to add to your hand for the new semester.</div>
       <div class="overlay-actions">${btns}</div>
     </div>`;
 

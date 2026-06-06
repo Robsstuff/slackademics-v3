@@ -468,11 +468,9 @@ export function playPair(state, { playerId, projectCardId, partyCardId }) {
 }
 
 // ── Partial reveal total (no wrap-around for trailing copy) ──
-// Used during intermediate reveals so the counter accurately shows
-// only what has been determined. A trailing copy card means the
-// ×2 multiplier is pending — it will apply to the NEXT card when
-// revealed (or to the first card if it's the final pile card).
-function _partialRevealTotal(pile) {
+// Used during intermediate reveals. Accepts optional effects for
+// Cram/Cheat bonuses so the running counter is accurate.
+function _partialRevealTotal(pile, effects = {}) {
   let pendingMult = 1;
   let total       = 0;
   for (const card of pile) {
@@ -480,7 +478,15 @@ function _partialRevealTotal(pile) {
     if (card.type === 'copy') {
       pendingMult *= 2;
     } else {
-      total      += card.value * pendingMult;
+      let val = card.value;
+      if (card.type === 'cram') {
+        const otherCrams = Math.max(0, (effects.cramCount || 0) - 1);
+        val = val + otherCrams;
+      } else if (card.type === 'cheat') {
+        const otherCheats = Math.max(0, (effects.cheatCount || 0) - 1);
+        val = val - 2 * otherCheats;
+      }
+      total      += val * pendingMult;
       pendingMult = 1;
     }
   }
@@ -506,12 +512,17 @@ export function revealPhase(state) {
 
   // Reveal all except the last unrevealed card
   const toReveal = unrevealed.slice(0, -1);
+  // Pre-compute Cram/Cheat effect counts (counts are fixed; pass to partial total)
+  const revEffects = {
+    cramCount:  _countTypeInAllPiles('cram',  state),
+    cheatCount: _countTypeInAllPiles('cheat', state),
+  };
   for (const card of toReveal) {
     card.revealed = true;
     // Use forward-only partial total so copy cards don't prematurely
     // wrap to multiply an earlier card — the ×2 visually applies to
     // the next card revealed, not the first card in the pile.
-    const partialTotal = _partialRevealTotal(state.projectPile);
+    const partialTotal = _partialRevealTotal(state.projectPile, revEffects);
     events.push(evt('CARD_REVEALED', { card, runningTotal: partialTotal, target: state.projectTarget }));
     events.push(evt('EFFORT_UPDATED', { total: partialTotal, target: state.projectTarget }));
   }
@@ -750,8 +761,9 @@ function _tallyVotes(state, existingEvents) {
     // TIE — investigation: compare top party pile cards
     const aTop = state.players[accusedId].partyPile[state.players[accusedId].partyPile.length - 1];
     const lTop = state.players[leaderId ].partyPile[state.players[leaderId ].partyPile.length - 1];
-    const aVal = aTop ? (aTop.type === 'effort' ? aTop.value : 0) : -1;
-    const lVal = lTop ? (lTop.type === 'effort' ? lTop.value : 0) : -1;
+    // copy=9 for tie-break; cram/cheat/colead use base value; no card=-1
+    const aVal = aTop ? (aTop.type === 'copy' ? 9 : aTop.value) : -1;
+    const lVal = lTop ? (lTop.type === 'copy' ? 9 : lTop.value) : -1;
 
     if (aTop) aTop.revealed = true;
     if (lTop) lTop.revealed = true;
@@ -834,9 +846,9 @@ export function snitchTarget(state, { snitcherId, targetId }) {
   targetTop.revealed = true;
 
   const snitcherTop = snitcher.partyPile[snitcher.partyPile.length - 1];
-  // Copy cards count as 9 for snitch comparisons (beats every effort card 0-8)
-  const sVal = snitcherTop ? (snitcherTop.type === 'effort' ? snitcherTop.value : 9) : 0;
-  const tVal = targetTop.type === 'effort' ? targetTop.value : 9;
+  // Copy cards count as 9 (beats every effort 0-8); cram/cheat/colead use base value
+  const sVal = snitcherTop ? (snitcherTop.type === 'copy' ? 9 : snitcherTop.value) : 0;
+  const tVal = targetTop.type === 'copy' ? 9 : targetTop.value;
 
   events.push(evt('SNITCH_REVEALED', {
     snitcherId, targetId, targetCard: targetTop, snitcherValue: sVal,

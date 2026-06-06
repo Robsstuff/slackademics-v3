@@ -268,12 +268,12 @@ function _choosePair(state, playerId, player, pairs) {
 
       // Separate pairs by type using explicit loops (avoids any flat/filter edge cases)
       const cpPairs = [];   // copy+copy pairs
-      const epPairs = [];   // effort+effort pairs
+      const epPairs = [];   // non-copy pairs (effort, cram, cheat, colead)
       for (let pi = 0; pi < pairs.length; pi++) {
         const pa = pairs[pi][0];
         const pb = pairs[pi][1];
-        if (pa.type === 'copy' && pb.type === 'copy')     cpPairs.push(pairs[pi]);
-        else if (pa.type === 'effort' && pb.type === 'effort') epPairs.push(pairs[pi]);
+        if (pa.type === 'copy' && pb.type === 'copy')         cpPairs.push(pairs[pi]);
+        else if (pa.type !== 'copy' && pb.type !== 'copy')    epPairs.push(pairs[pi]);
       }
 
       // Helper: given a target card, find its pair and route it to project
@@ -520,8 +520,8 @@ function _actionVote(state, playerId, player) {
 
 function _actionSnitch(state, playerId, player) {
   const myPartyTop = player.partyPile[player.partyPile.length - 1];
-  // Copy cards count as 9 for snitch (beat all effort cards 0-8)
-  const myVal      = myPartyTop ? (myPartyTop.type === 'effort' ? myPartyTop.value : 9) : 0;
+  // Only copy counts as 9; cram/cheat/colead use base value
+  const myVal      = myPartyTop ? (myPartyTop.type === 'copy' ? 9 : myPartyTop.value) : 0;
 
   // Collect eligible targets (not already snitched this turn)
   const alreadySnitched = state.snitchedThisTurn || [];
@@ -531,8 +531,12 @@ function _actionSnitch(state, playerId, player) {
   // Helper: infer a player's party card value from their revealed project card
   const inferPartyVal = id => {
     const proj = state.projectPile.find(c => c.playerId === id);
-    if (!proj || !proj.revealed) return 4;      // unknown — use midpoint estimate
-    return proj.type === 'effort' ? Math.max(0, 8 - proj.value) : 9;  // copy → 9
+    if (!proj || !proj.revealed) return 4;           // unknown — use midpoint estimate
+    if (proj.type === 'copy')   return 9;            // copy → party copy = 9
+    if (proj.type === 'cram')   return proj.value === 6 ? 2 : 6;  // complementary cram
+    if (proj.type === 'cheat')  return 5;            // cheat5 + cheat5
+    if (proj.type === 'colead') return 4;            // colead4 + colead4
+    return Math.max(0, 8 - proj.value);              // effort: sums to 8
   };
 
   // ── Play To Win: deterministic probability from inferred cards ──
@@ -553,8 +557,13 @@ function _actionSnitch(state, playerId, player) {
   for (const id of others) {
     const proj = state.projectPile.find(c => c.playerId === id);
     if (proj && proj.revealed) {
-      // Revealed card: use exact inferred value (copy counts as 9)
-      const inferred = proj.type === 'effort' ? Math.max(0, 8 - proj.value) : 9;
+      // Revealed card: use exact inferred party value
+      let inferred;
+      if (proj.type === 'copy')        inferred = 9;
+      else if (proj.type === 'cram')   inferred = proj.value === 6 ? 2 : 6;
+      else if (proj.type === 'cheat')  inferred = 5;
+      else if (proj.type === 'colead') inferred = 4;
+      else                             inferred = Math.max(0, 8 - proj.value);
       if (inferred > myVal)       confirmedAbove += 1;
       else if (inferred === myVal) confirmedEqual += 1;
     } else {
@@ -595,7 +604,11 @@ function _pickSnitchTarget(state, playerId, player, others) {
     const projCard = state.projectPile.find(c => c.playerId === id);
     let inferred = 4; // default estimate for unrevealed cards
     if (projCard && projCard.revealed) {
-      inferred = projCard.type === 'effort' ? Math.max(0, 8 - projCard.value) : 9;
+      if (projCard.type === 'copy')        inferred = 9;
+      else if (projCard.type === 'cram')   inferred = projCard.value === 6 ? 2 : 6;
+      else if (projCard.type === 'cheat')  inferred = 5;
+      else if (projCard.type === 'colead') inferred = 4;
+      else                                 inferred = Math.max(0, 8 - projCard.value);
     }
     if (inferred > bestVal) { bestVal = inferred; bestId = id; }
   }

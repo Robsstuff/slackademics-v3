@@ -82,6 +82,23 @@ function failPipsHTML(count, limit = 5) {
 
 const $ = id => document.getElementById(id);
 
+// ── Compute cram/cheat effect counts across all piles ────
+// Mirrors engine.js _countTypeInAllPiles — used for display totals.
+function _computeEffects(state) {
+  let cramCount = 0, cheatCount = 0;
+  for (const c of state.projectPile) {
+    if (c.type === 'cram')  cramCount++;
+    if (c.type === 'cheat') cheatCount++;
+  }
+  for (const p of Object.values(state.players)) {
+    for (const c of p.partyPile) {
+      if (c.type === 'cram')  cramCount++;
+      if (c.type === 'cheat') cheatCount++;
+    }
+  }
+  return { cramCount, cheatCount };
+}
+
 // ── Resolve image key for any card type ──────────────────
 function _cardImgKey(card) {
   if (card.type === 'cram')   return `cram${card.value}`;  // 'cram6' or 'cram2'
@@ -155,17 +172,22 @@ export function renderGameHeader(state) {
   const pipVal = $('effort-val');
   const isPlaying = state.phase === 'PLAYING';
   if (pip)    pip.classList.toggle('unknown', isPlaying);
-  if (pipVal) pipVal.textContent = isPlaying ? '?' : String(
-    state.projectPile.reduce((s, c) => s + (c.revealed && c.type === 'effort' ? c.value : 0), 0)
-  );
+  if (pipVal) {
+    if (isPlaying) {
+      pipVal.textContent = '?';
+    } else {
+      const revPile = state.projectPile.filter(c => c.revealed);
+      pipVal.textContent = String(computePileTotal(revPile, _computeEffects(state)));
+    }
+  }
 
-  // Prominent effort bar
+  // Prominent effort bar — use computePileTotal so Cram/Cheat bonuses show correctly
   if (isPlaying) {
     _updateEffortBar(0, true);
   } else {
-    const total = state.projectPile.reduce(
-      (s, c) => s + (c.revealed && c.type === 'effort' ? c.value : 0), 0
-    );
+    const revealedPile = state.projectPile.filter(c => c.revealed);
+    const effects      = _computeEffects(state);
+    const total        = computePileTotal(revealedPile, effects);
     _updateEffortBar(total, false);
   }
 
@@ -315,6 +337,36 @@ function buildPairGroups(hand) {
         break;
       }
     }
+  }
+
+  // cram pairs (6+2 = 8)
+  const crams = hand.filter(c => c.type === 'cram' && !used.has(c.id));
+  for (let i = 0; i < crams.length; i++) {
+    if (used.has(crams[i].id)) continue;
+    for (let j = i + 1; j < crams.length; j++) {
+      if (!used.has(crams[j].id) && crams[i].value + crams[j].value === 8) {
+        pairs.push([crams[i], crams[j]]);
+        used.add(crams[i].id);
+        used.add(crams[j].id);
+        break;
+      }
+    }
+  }
+
+  // cheat pairs (5+5)
+  const cheats = hand.filter(c => c.type === 'cheat' && !used.has(c.id));
+  if (cheats.length >= 2) {
+    pairs.push([cheats[0], cheats[1]]);
+    used.add(cheats[0].id);
+    used.add(cheats[1].id);
+  }
+
+  // colead pairs (4+4)
+  const coleads = hand.filter(c => c.type === 'colead' && !used.has(c.id));
+  if (coleads.length >= 2) {
+    pairs.push([coleads[0], coleads[1]]);
+    used.add(coleads[0].id);
+    used.add(coleads[1].id);
   }
 
   // any unpaired cards (shouldn't happen in normal play)
@@ -711,7 +763,15 @@ export function renderPlayerStatus(state, humanId) {
   }
 
   // Live score: party pile total + extra credit bonuses (same formula as final score)
-  const partyScore = computePileTotal(p.partyPile || []);
+  // Count cram/cheat only across party piles (project pile not yet scored)
+  let _cramC = 0, _cheatC = 0;
+  for (const pid of state.playerOrder) {
+    for (const c of state.players[pid].partyPile) {
+      if (c.type === 'cram')  _cramC++;
+      if (c.type === 'cheat') _cheatC++;
+    }
+  }
+  const partyScore = computePileTotal(p.partyPile || [], { cramCount: _cramC, cheatCount: _cheatC });
   const ecBonus    = (p.extraCredits || 0) * 3;
   const cleanBonus = (p.individualFails || 0) === 0 ? (p.extraCredits || 0) * 2 : 0;
   const liveScore  = state.phase === 'GAMEOVER'
@@ -748,9 +808,9 @@ export function renderSnitchPanel(state, humanId) {
   panel.style.display = '';
 
   // Human's own party card value
-  // Copy cards count as 9 for snitch comparisons (beat all effort cards 0-8)
+  // Only copy cards count as 9; cram/cheat/colead use their base value
   const myCard = p.partyPile[p.partyPile.length - 1];
-  const myVal  = myCard ? (myCard.type === 'effort' ? myCard.value : 9) : 0;
+  const myVal  = myCard ? (myCard.type === 'copy' ? 9 : myCard.value) : 0;
   const myDisp = myCard ? (myCard.type === 'copy' ? 'X2' : myCard.value) : '?';
 
   // Infer other active players' party cards from their project pile cards
@@ -764,13 +824,22 @@ export function renderSnitchPanel(state, humanId) {
     let inferredVal = 4;    // fallback for unrevealed cards
     let displayVal  = '?';
     if (projCard && projCard.revealed) {
-      if (projCard.type === 'effort') {
-        inferredVal = Math.max(0, 8 - projCard.value);
-        displayVal  = inferredVal;
-      } else {
-        // Copy project card → copy party card (snitch value 9)
+      if (projCard.type === 'copy') {
+        // copy project → copy party (snitch value 9)
         inferredVal = 9;
         displayVal  = 'X2';
+      } else if (projCard.type === 'effort') {
+        // effort: partner sums to 8
+        inferredVal = Math.max(0, 8 - projCard.value);
+        displayVal  = inferredVal;
+      } else if (projCard.type === 'cram') {
+        // cram6 → partner is cram2; cram2 → partner is cram6
+        inferredVal = projCard.value === 6 ? 2 : 6;
+        displayVal  = inferredVal;
+      } else {
+        // cheat(5+5) or colead(4+4): same value both cards
+        inferredVal = projCard.value;
+        displayVal  = inferredVal;
       }
     }
     const eligible = !alreadySnitched.includes(id);

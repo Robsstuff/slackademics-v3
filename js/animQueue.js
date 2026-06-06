@@ -580,7 +580,7 @@ function _stepExtraCredit(ev, state) {
         slot.appendChild(credits);
       }
       const ecImg = document.createElement('img');
-      ecImg.src = './cards/other/ExtraCredit1.jpg';
+      ecImg.src = './cards/extra-credit.jpg';
       ecImg.alt = 'Extra Credit';
       ecImg.className = 'ec-pip-img anim-scale-in';
       credits.appendChild(ecImg);
