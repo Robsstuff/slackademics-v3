@@ -71,8 +71,8 @@ function _countTypeInAllPiles(type, state) {
 // ── Compute project pile total with optional skill effects ─
 // Handles X2 Copy card chaining + wrap-around.
 // effects may include:
-//   cramCount  — Cram cards in THIS pile only (bonus is per-project, not game-wide)
-//   cheatCount — total Cheat cards in ALL piles (penalty is game-wide)
+//   cramCount  — Cram cards in THIS pile only (+1 per other Cram in same pile)
+//   cheatCount — Cheat cards in THIS pile only (-2 per other Cheat in same pile)
 export function computePileTotal(pile, effects = {}) {
   // Build a working copy with skill + special-card modifications applied
   let working = pile.map(card => {
@@ -296,10 +296,9 @@ function resolveOutcome(state, events) {
   const effects   = { ...(state.skillEffects || {}) };
   const skillId   = state.chosenSkill?.id;
 
-  // Cram: count only within the project pile (bonus is per-project)
-  // Cheat: count across all piles (penalty is game-wide)
+  // Both Cram and Cheat: count only within the project pile
   effects.cramCount  = state.projectPile.filter(c => c.type === 'cram').length;
-  effects.cheatCount = _countTypeInAllPiles('cheat', state);
+  effects.cheatCount = state.projectPile.filter(c => c.type === 'cheat').length;
 
   // Apply Complain to the Dean: remove 2 lowest effort cards first
   if (skillId === 'complain') {
@@ -513,10 +512,10 @@ export function revealPhase(state) {
 
   // Reveal all except the last unrevealed card
   const toReveal = unrevealed.slice(0, -1);
-  // Cram: project pile only (bonus is per-project); Cheat: all piles (game-wide penalty)
+  // Both Cram and Cheat: count only within the project pile
   const revEffects = {
     cramCount:  state.projectPile.filter(c => c.type === 'cram').length,
-    cheatCount: _countTypeInAllPiles('cheat', state),
+    cheatCount: state.projectPile.filter(c => c.type === 'cheat').length,
   };
   for (const card of toReveal) {
     card.revealed = true;
@@ -1202,21 +1201,14 @@ export function getValidActions(state) {
 
 // ── Final score calculation ───────────────────────────────
 function _computeFinalScores(state) {
-  // Cheat penalty is game-wide: count across ALL party piles
-  let totalCheatCount = 0;
-  for (const p of Object.values(state.players)) {
-    for (const c of p.partyPile) {
-      if (c.type === 'cheat') totalCheatCount++;
-    }
-  }
-
   for (const id of state.playerOrder) {
     const p = state.players[id];
     if (p.isExpelled) { p.academicPoints = 0; continue; }
 
-    // Cram bonus: count only within this player's own party pile
-    const cramCount = p.partyPile.filter(c => c.type === 'cram').length;
-    const effects   = { cramCount, cheatCount: totalCheatCount };
+    // Cram and Cheat: count only within this player's own party pile
+    const cramCount  = p.partyPile.filter(c => c.type === 'cram').length;
+    const cheatCount = p.partyPile.filter(c => c.type === 'cheat').length;
+    const effects    = { cramCount, cheatCount };
     const partyScore = computePileTotal(p.partyPile, effects);
     const ecBonus    = p.extraCredits * 3;
     const cleanBonus = p.individualFails === 0 ? p.extraCredits * 2 : 0;
