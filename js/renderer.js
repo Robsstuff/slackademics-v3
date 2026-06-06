@@ -82,17 +82,17 @@ function failPipsHTML(count, limit = 5) {
 
 const $ = id => document.getElementById(id);
 
-// ── Compute cram/cheat effect counts across all piles ────
-// Mirrors engine.js _countTypeInAllPiles — used for display totals.
+// ── Compute cram/cheat effect counts for project pile display ──
+// Cram: count only within project pile (bonus is per-project, not game-wide).
+// Cheat: count across all piles (penalty is game-wide).
 function _computeEffects(state) {
-  let cramCount = 0, cheatCount = 0;
+  const cramCount = state.projectPile.filter(c => c.type === 'cram').length;
+  let cheatCount  = 0;
   for (const c of state.projectPile) {
-    if (c.type === 'cram')  cramCount++;
     if (c.type === 'cheat') cheatCount++;
   }
   for (const p of Object.values(state.players)) {
     for (const c of p.partyPile) {
-      if (c.type === 'cram')  cramCount++;
       if (c.type === 'cheat') cheatCount++;
     }
   }
@@ -762,12 +762,13 @@ export function renderPlayerStatus(state, humanId) {
     cards = '<span class="party-empty">Empty</span>';
   }
 
-  // Live score: party pile total + extra credit bonuses (same formula as final score)
-  // Count cram/cheat only across party piles (project pile not yet scored)
-  let _cramC = 0, _cheatC = 0;
+  // Live score: party pile total + extra credit bonuses (mirrors _computeFinalScores)
+  // Cram: count only within THIS player's party pile (per-pile bonus)
+  // Cheat: count across ALL party piles (game-wide penalty)
+  const _cramC  = (p.partyPile || []).filter(c => c.type === 'cram').length;
+  let   _cheatC = 0;
   for (const pid of state.playerOrder) {
     for (const c of state.players[pid].partyPile) {
-      if (c.type === 'cram')  _cramC++;
       if (c.type === 'cheat') _cheatC++;
     }
   }

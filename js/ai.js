@@ -625,17 +625,6 @@ function _pickSnitchTarget(state, playerId, player, others) {
 function _actionDrawPair(state, playerId, player) {
   const available = getAvailablePairKeys(state, playerId);
   if (available.length === 0) return { type: 'DRAW_PAIR', key: null };
-
-  // Score each available pair (higher = preferred)
-  const scored = available.map(key => {
-    switch (key) {
-      case '0+8':    return { key, score: 8 };   // high effort card available
-      case 'cram':   return { key, score: 6 };   // cram-6 + synergy bonus potential
-      case 'colead': return { key, score: 5 };   // value 4 + potential party pile transfer
-      case 'cheat':  return { key, score: 4 };   // value 5 but risky with multiple cheats
-      default:       return { key, score: 3 };
-    }
-  });
-  scored.sort((x, y) => y.score - x.score);
-  return { type: 'DRAW_PAIR', key: scored[0].key };
+  // Pick randomly from whatever pairs are still in the pool
+  return { type: 'DRAW_PAIR', key: pick(available) };
 }
