@@ -114,6 +114,21 @@
       </div>
     </div>
 
+    <!-- Co-Lead fail rule selector -->
+    <div class="lobby-section">
+      <div class="sec-lbl">Co-Lead Fail Rule</div>
+      <div class="diff-btns" id="colead-btns">
+        <button class="diff-btn active" id="btn-colead-examfail" onclick="setCoLeadMode('exam_fail')">
+          <span class="diff-name">Exam Fail</span>
+          <span class="diff-desc">+1 fail when the exam fails with Co-Lead in pile</span>
+        </button>
+        <button class="diff-btn" id="btn-colead-discard" onclick="setCoLeadMode('discard')">
+          <span class="diff-name">Discard</span>
+          <span class="diff-desc">+1 fail when Co-Lead is discarded via blame/snitch</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Speed / animation toggle -->
     <div class="lobby-section">
       <div class="sec-lbl">Game Speed</div>
@@ -779,8 +794,15 @@ document.getElementById('start-game-btn').addEventListener('click', function(e) 
 </script>
 
 <script>
-window._slk_diff = 1.0;   // fallback store, read by main.js if __slk not yet ready
-window._slk_anim = true;  // true = animated, false = instant (for bulk testing)
+window._slk_diff       = 1.0;        // fallback store, read by main.js if __slk not yet ready
+window._slk_anim       = true;       // true = animated, false = instant (for bulk testing)
+window._slk_colead_fail = 'exam_fail'; // Co-Lead fail rule: 'exam_fail' | 'discard'
+
+function setCoLeadMode(mode) {
+  window._slk_colead_fail = mode;
+  document.getElementById('btn-colead-examfail').classList.toggle('active', mode === 'exam_fail');
+  document.getElementById('btn-colead-discard').classList.toggle('active', mode === 'discard');
+}
 
 function setAnimMode(on) {
   window._slk_anim = on;

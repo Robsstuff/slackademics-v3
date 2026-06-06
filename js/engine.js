@@ -26,7 +26,7 @@
 'use strict';
 
 import {
-  addLog, getTarget, totalFails, pairKey,
+  addLog, getTarget, totalFails,
   FAIL_LIMIT, TOTAL_SEMESTERS, BREAK_SEMESTERS,
   SEMESTER_NAMES, POOL_PAIRS, makeCard,
 } from './state.js';
@@ -50,20 +50,48 @@ export function nextPlayer(state, currentId) {
 // ── Pair validation ───────────────────────────────────────
 export function isValidPair(c1, c2) {
   if (!c1 || !c2 || c1.id === c2.id) return false;
-  if (c1.type === 'copy' && c2.type === 'copy') return true;
+  if (c1.type === 'copy'   && c2.type === 'copy')   return true;
+  if (c1.type === 'cheat'  && c2.type === 'cheat')  return true;  // 5+5 special exception
+  if (c1.type === 'colead' && c2.type === 'colead') return true;  // 4+4
+  if (c1.type === 'cram'   && c2.type === 'cram')   return c1.value + c2.value === 8;  // 6+2=8
   if (c1.type === 'effort' && c2.type === 'effort') return c1.value + c2.value === 8;
   return false;
 }
 
+// ── Count cards of a given type across project pile + all party piles ──
+function _countTypeInAllPiles(type, state) {
+  let n = 0;
+  for (const c of state.projectPile) if (c.type === type) n++;
+  for (const p of Object.values(state.players)) {
+    for (const c of p.partyPile) if (c.type === type) n++;
+  }
+  return n;
+}
+
 // ── Compute project pile total with optional skill effects ─
 // Handles X2 Copy card chaining + wrap-around.
+// effects may include:
+//   cramCount  — total Cram cards in ALL piles (for Cram bonus)
+//   cheatCount — total Cheat cards in ALL piles (for Cheat penalty)
 export function computePileTotal(pile, effects = {}) {
-  // Build a working copy with skill modifications applied
+  // Build a working copy with skill + special-card modifications applied
   let working = pile.map(card => {
-    if (card.type !== 'effort') return card;
     let v = card.value;
-    if (effects.evenodds && v % 2 !== 0) v = 4;
-    if (effects.coffee && v >= 1 && v <= 3) v = v * 2;
+    if (card.type === 'effort') {
+      // Skill effects apply only to regular effort cards
+      if (effects.evenodds && v % 2 !== 0) v = 4;
+      if (effects.coffee && v >= 1 && v <= 3) v = v * 2;
+    } else if (card.type === 'cram') {
+      // Cram: +1 for each OTHER Cram card across both piles
+      const otherCrams = Math.max(0, (effects.cramCount || 0) - 1);
+      v = v + otherCrams;
+    } else if (card.type === 'cheat') {
+      // Cheat: -2 for each OTHER Cheat card across both piles (can go negative)
+      const otherCheats = Math.max(0, (effects.cheatCount || 0) - 1);
+      v = v - 2 * otherCheats;
+    }
+    // colead type: base value 4, no modifier here (transfer happens on project pass)
+    // copy type: unchanged
     return { ...card, value: v };
   });
 
@@ -238,6 +266,19 @@ function applyEndOfSemesterDiscards(state, events) {
     }
     p.markedForDiscard = [];
     if (discarded.length > 0) {
+      // Co-Lead fail Option B: +1 individual fail for each discarded Co-Lead card
+      if (state.coLeadFailMode === 'discard') {
+        for (const c of discarded) {
+          if (c.type === 'colead') {
+            addLog(state, {
+              type: 'fail',
+              text: `${p.name} takes a Co-Lead penalty fail (card discarded).`,
+              playerId: id,
+            });
+            events.push(...applyIndividualFail(state, id));
+          }
+        }
+      }
       events.push(evt('PARTY_CARDS_DISCARDED', { playerId: id, cards: discarded }));
     }
   }
@@ -252,8 +293,12 @@ function getVoters(state) {
 
 // ── Resolve project pass/fail after final card is flipped ─
 function resolveOutcome(state, events) {
-  const effects   = state.skillEffects || {};
+  const effects   = { ...(state.skillEffects || {}) };
   const skillId   = state.chosenSkill?.id;
+
+  // Inject global Cram / Cheat counts for bonus calculations
+  effects.cramCount  = _countTypeInAllPiles('cram',  state);
+  effects.cheatCount = _countTypeInAllPiles('cheat', state);
 
   // Apply Complain to the Dean: remove 2 lowest effort cards first
   if (skillId === 'complain') {
@@ -287,13 +332,28 @@ function resolveOutcome(state, events) {
     events.push(evt('PROJECT_PASSED', { total, target: effectiveTarget }));
     addLog(state, { type: 'pass', text: `Project PASSED — ${total} / ${effectiveTarget}!` });
 
+    // Co-Lead transfer: Co-Lead cards in project pile move to the player's own party pile
+    for (const card of [...state.projectPile]) {
+      if (card.type === 'colead') {
+        const p = state.players[card.playerId];
+        if (p) {
+          state.projectPile = state.projectPile.filter(c => c.id !== card.id);
+          const transferred = { ...card, revealed: true };
+          p.partyPile.push(transferred);
+          events.push(evt('COLEAD_TRANSFERRED', { playerId: card.playerId, card: transferred }));
+          addLog(state, {
+            type: 'system',
+            text: `${p.name}'s Co-Lead card transfers to their Party Pile!`,
+            playerId: card.playerId,
+          });
+        }
+      }
+    }
+
     // Extra Credits — only when Let It Ride is used (no skill)
-    // Leader always gets one; leader then picks one other player to award
     if (!state.chosenSkill) {
       const leaderId = state.projectLeaderId;
       events.push(...awardExtraCredit(state, leaderId));
-      // Signal that the leader must now pick a second recipient
-      // (handled in main.js for human leaders, AI resolves immediately)
       const active = activePlayers(state);
       if (active.length > 1) {
         state.pendingSkillStep = 'extra-credit-pick';
@@ -314,6 +374,24 @@ function resolveOutcome(state, events) {
 
     // Group Fail — ALL active players
     events.push(...applyGroupFail(state));
+
+    // Co-Lead fail Option A: +1 individual fail for each player whose Co-Lead
+    // is still in the project pile when the exam fails
+    if (state.coLeadFailMode === 'exam_fail') {
+      for (const card of state.projectPile) {
+        if (card.type === 'colead' && card.playerId) {
+          const p = state.players[card.playerId];
+          if (p) {
+            addLog(state, {
+              type: 'fail',
+              text: `${p.name} takes a Co-Lead penalty fail (exam failed).`,
+              playerId: card.playerId,
+            });
+            events.push(...applyIndividualFail(state, card.playerId));
+          }
+        }
+      }
+    }
 
     // Move to BLAME
     state.phase          = 'BLAME';
@@ -809,6 +887,19 @@ function _snitchFails(state, events, snitcherId) {
     pile[pile.length - 1].revealed = true;
     pile[pile.length - 2].revealed = true;
     const d = [pile.pop(), pile.pop()];
+    // Co-Lead Option B: fail for each co-lead card lost in snitch
+    if (state.coLeadFailMode === 'discard') {
+      for (const c of d) {
+        if (c.type === 'colead') {
+          addLog(state, {
+            type: 'fail',
+            text: `${p.name} takes a Co-Lead penalty fail (card lost in snitch).`,
+            playerId: snitcherId,
+          });
+          events.push(...applyIndividualFail(state, snitcherId));
+        }
+      }
+    }
     events.push(evt('SNITCH_DISCARD', { playerId: snitcherId, discarded: d }));
     addLog(state, {
       type: 'snitch',
@@ -817,6 +908,14 @@ function _snitchFails(state, events, snitcherId) {
     });
   } else if (pile.length === 1) {
     const d = [pile.pop()];
+    if (state.coLeadFailMode === 'discard' && d[0].type === 'colead') {
+      addLog(state, {
+        type: 'fail',
+        text: `${p.name} takes a Co-Lead penalty fail (card lost in snitch).`,
+        playerId: snitcherId,
+      });
+      events.push(...applyIndividualFail(state, snitcherId));
+    }
     events.push(evt('SNITCH_DISCARD', { playerId: snitcherId, discarded: d }));
     events.push(...applyIndividualFail(state, snitcherId));
     addLog(state, {
@@ -959,40 +1058,37 @@ export function semesterBreak(state) {
 
 // ── drawPair ──────────────────────────────────────────────
 // Called during BREAK_DRAW phase for each player's turn.
-// key: string like '0+8', '3+5', 'copy+copy'
+// key: '0+8' | 'cram' | 'cheat' | 'colead'
 export function drawPair(state, { playerId, key }) {
   if (state.phase !== 'BREAK_DRAW')
     throw new Error(`drawPair called in phase ${state.phase}`);
   if (state.breakDrawCurrent !== playerId)
     throw new Error(`Not ${playerId}'s draw turn`);
 
+  const pairDef = POOL_PAIRS.find(p => p.key === key);
+  if (!pairDef) throw new Error(`Unknown pair key: ${key}`);
+
+  const { typeA, valueA, typeB, valueB } = pairDef;
+  const pool   = state.effortPool;
   const player = state.players[playerId];
-  if (player.drawnPairs.includes(key))
-    throw new Error(`${playerId} already drew pair ${key}`);
 
-  // Parse key
-  let val1, val2;
-  if (key === 'copy+copy') { val1 = 'copy'; val2 = 'copy'; }
-  else { [val1, val2] = key.split('+').map(Number); }
-
-  // Find cards in pool
-  const pool = state.effortPool;
-  const i1 = pool.findIndex(c => c.value === val1);
-  if (i1 === -1) throw new Error(`No ${val1} in pool`);
-  const i2 = pool.findIndex((c, i) => c.value === val2 && i !== i1);
-  if (i2 === -1) throw new Error(`No second ${val2} in pool`);
+  const i1 = pool.findIndex(c => c.type === typeA && c.value === valueA);
+  if (i1 === -1) throw new Error(`No ${typeA}:${valueA} in pool`);
+  const i2 = pool.findIndex((c, i) => c.type === typeB && c.value === valueB && i !== i1);
+  if (i2 === -1) throw new Error(`No second ${typeB}:${valueB} in pool`);
 
   const hi = Math.max(i1, i2), lo = Math.min(i1, i2);
   const card1 = pool.splice(hi, 1)[0];
   const card2 = pool.splice(lo, 1)[0];
 
   player.hand.push(card1, card2);
+  // drawnPairs kept for record-keeping but no longer blocks re-draws
   player.drawnPairs.push(key);
 
   const events = [evt('PAIR_DRAWN', { playerId, cards: [card1, card2], key })];
   addLog(state, {
     type: 'system',
-    text: `${player.name} draws the [${val1}+${val2}] pair.`,
+    text: `${player.name} draws the [${key}] pair.`,
     playerId,
   });
 
@@ -1023,18 +1119,16 @@ export function drawPair(state, { playerId, key }) {
 }
 
 // ── getAvailablePairKeys ──────────────────────────────────
-export function getAvailablePairKeys(state, playerId) {
-  const player = state.players[playerId];
-  const pool   = state.effortPool;
-
+// Returns all pair keys that still have cards available in the pool.
+// No restriction on re-drawing the same pair type (removed drawnPairs check).
+export function getAvailablePairKeys(state /*, playerId unused */) {
+  const pool = state.effortPool;
   return POOL_PAIRS
-    .map(([a, b]) => ({ key: pairKey(a, b), a, b }))
-    .filter(({ key, a, b }) => {
-      if (key === 'copy+copy') return false;            // Copy pairs not available during break
-      if (player.drawnPairs.includes(key)) return false;
-      const count = v => pool.filter(c => c.value === v).length;
-      if (a === b) return count(a) >= 2;
-      return count(a) >= 1 && count(b) >= 1;
+    .filter(({ typeA, valueA, typeB, valueB }) => {
+      const sameCard = typeA === typeB && valueA === valueB;
+      const countA = pool.filter(c => c.type === typeA && c.value === valueA).length;
+      const countB = pool.filter(c => c.type === typeB && c.value === valueB).length;
+      return sameCard ? countA >= 2 : countA >= 1 && countB >= 1;
     })
     .map(({ key }) => key);
 }
@@ -1095,13 +1189,23 @@ export function getValidActions(state) {
 
 // ── Final score calculation ───────────────────────────────
 function _computeFinalScores(state) {
+  // Count special cards across all party piles for bonus calculations
+  let cramCount = 0, cheatCount = 0;
+  for (const p of Object.values(state.players)) {
+    for (const c of p.partyPile) {
+      if (c.type === 'cram')  cramCount++;
+      if (c.type === 'cheat') cheatCount++;
+    }
+  }
+  const effects = { cramCount, cheatCount };
+
   for (const id of state.playerOrder) {
     const p = state.players[id];
     if (p.isExpelled) { p.academicPoints = 0; continue; }
 
-    const partyScore = computePileTotal(p.partyPile);
+    const partyScore = computePileTotal(p.partyPile, effects);
     const ecBonus    = p.extraCredits * 3;
     const cleanBonus = p.individualFails === 0 ? p.extraCredits * 2 : 0;
-    p.academicPoints = partyScore + ecBonus + cleanBonus;
+    p.academicPoints = Math.max(0, partyScore) + ecBonus + cleanBonus;
   }
 }

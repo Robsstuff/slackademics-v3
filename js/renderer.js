@@ -8,10 +8,12 @@ import { EFFORT_IMGS, COURSE_NAMES, SEMESTER_NAMES, totalFails } from './state.j
 import { computePileTotal, activePlayers } from './engine.js';
 
 // ── Card image base paths ─────────────────────────────────
-const EFFORT_BASE    = './cards/effort/';
+const EFFORT_BASE     = './cards/effort/';
 const LEADERSHIP_BASE = '../CARDS/Leadership Cards/';
-const OTHER_BASE     = './cards/other/';
-const CARD_BACK_SRC  = './cards/Card Back Regular.jpg';
+const OTHER_BASE      = './cards/other/';
+const CARD_BACK_SRC   = './cards/Card Back Regular.jpg';
+const FAIL_PIP_SRC    = './cards/fail-pip.jpg';
+const EXTRA_CRED_SRC  = './cards/extra-credit.jpg';
 
 // ── Module-level state ────────────────────────────────────
 let _projectTarget = 20;   // updated from state on every renderGameHeader
@@ -70,7 +72,7 @@ function failPipsHTML(count, limit = 5) {
   let html = '';
   for (let i = 0; i < limit; i++) {
     if (i < count) {
-      html += `<div class="fail-pip filled"><img src="${OTHER_BASE}Fail1.jpg" alt="Fail" class="fail-pip-img"/></div>`;
+      html += `<div class="fail-pip filled"><img src="${FAIL_PIP_SRC}" alt="Fail" class="fail-pip-img"/></div>`;
     } else {
       html += `<div class="fail-pip empty"></div>`;
     }
@@ -80,12 +82,21 @@ function failPipsHTML(count, limit = 5) {
 
 const $ = id => document.getElementById(id);
 
+// ── Resolve image key for any card type ──────────────────
+function _cardImgKey(card) {
+  if (card.type === 'cram')   return `cram${card.value}`;  // 'cram6' or 'cram2'
+  if (card.type === 'cheat')  return 'cheat';
+  if (card.type === 'colead') return 'colead';
+  if (card.type === 'copy')   return 'copy';
+  return card.value;   // regular effort cards: numeric key
+}
+
 // ── Build effort card HTML — clean card photo, no overlay ──
 function effortCardHTML(card) {
   const name    = esc(card.name ?? (card.type === 'copy' ? 'X2 Copy' : `Effort ${card.value}`));
-  const imgFile = EFFORT_IMGS[card.value] ?? 'Effort 4.jpg';
+  const imgKey  = _cardImgKey(card);
+  const imgFile = EFFORT_IMGS[imgKey] ?? EFFORT_IMGS[card.value] ?? '4.jpg';
   const imgSrc  = EFFORT_BASE + imgFile;
-  // Just the physical card artwork, full-bleed inside the card border
   return `<img src="${imgSrc}" alt="${name}" `
        + `style="width:100%;height:100%;object-fit:cover;display:block;" />`;
 }
@@ -257,7 +268,7 @@ export function renderPlayersBar(state) {
       const ecCount = Math.min(p.extraCredits, 5);
       let ecHtml = '';
       for (let i = 0; i < ecCount; i++) {
-        ecHtml += `<img src="${OTHER_BASE}ExtraCredit1.jpg" alt="Extra Credit" class="ec-pip-img"/>`;
+        ecHtml += `<img src="${EXTRA_CRED_SRC}" alt="Extra Credit" class="ec-pip-img"/>`;
       }
       inner += `<div class="slot-credits">${ecHtml}</div>`;
     }

@@ -67,9 +67,9 @@ export function startGame(lobbyPlayers) {
   }));
 
   _humanId = configs.find(c => c.isHuman)?.id ?? configs[0].id;
-  // Also read window._slk_diff in case setDifficulty was called before __slk was ready
-  if (window._slk_diff != null) _lobbyDifficulty = window._slk_diff;
-  _state   = createState(configs, _lobbyDifficulty);
+  if (window._slk_diff       != null) _lobbyDifficulty = window._slk_diff;
+  const coLeadFailMode = window._slk_colead_fail || 'exam_fail';
+  _state   = createState(configs, _lobbyDifficulty, coLeadFailMode);
   _stagedProject = null;
   _stagedParty   = null;
 
@@ -542,9 +542,8 @@ export function openBreakDrawOverlay() {
   if (_state.phase !== 'BREAK_DRAW') return;
   if (_state.breakDrawCurrent !== _humanId) return;
 
-  const available = getAvailablePairKeys(_state, _humanId);
+  const available = getAvailablePairKeys(_state);
   if (available.length === 0) {
-    // Auto-advance if nothing available
     _advance();
     return;
   }
@@ -557,8 +556,10 @@ export function openBreakDrawOverlay() {
   overlay.className = 'overlay-screen active';
 
   const labels = {
-    '0+8':'0 + 8', '1+7':'1 + 7', '2+6':'2 + 6',
-    '3+5':'3 + 5', '4+4':'4 + 4', 'copy+copy':'Copy + Copy',
+    '0+8':    '0 + 8 (effort)',
+    'cram':   'Cram  6 + 2  (+1 per Cram in any pile)',
+    'cheat':  'Cheat  5 + 5  (−2 per other Cheat in any pile)',
+    'colead': 'Co-Lead  4 + 4  (transfers to Party Pile on pass)',
   };
 
   let btns = available.map(key =>

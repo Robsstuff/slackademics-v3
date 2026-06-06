@@ -25,7 +25,7 @@
 import { pick }                                         from './utils.js';
 import { activePlayers, getAvailablePairKeys, isValidPair, computePileTotal }
                                                         from './engine.js';
-import { pairKey, totalFails }                          from './state.js';
+import { totalFails }                                   from './state.js';
 
 // ── Public entry point ────────────────────────────────────
 export function getAIAction(state, playerId) {
@@ -114,6 +114,11 @@ function _choosePair(state, playerId, player, pairs) {
   const effortNeeded  = state.projectTarget - currentTotal;
   const avg           = yetToPlay > 0 ? effortNeeded / yetToPlay : 4;
 
+  // For all modes: treat cram/cheat/colead the same as effort for pair selection.
+  // Copy pairs are handled separately via the copyPairs pre-check in _actionPlaying.
+  // "effort-like" = any non-copy pair
+  const isEffortLike = c => c.type !== 'copy';
+
   switch (mode) {
 
     // ── GREEDY: maximise party pile ───────────────────────
@@ -122,7 +127,7 @@ function _choosePair(state, playerId, player, pairs) {
       const [c1, c2] = pick(pairs);
       const lo = c1.value <= c2.value ? c1 : c2;
       const hi = c1.value <= c2.value ? c2 : c1;
-      if (lo.type === 'copy' || hi.type === 'copy') {
+      if (!isEffortLike(lo) || !isEffortLike(hi)) {
         return { projectCard: c1, partyCard: c2 };
       }
       // P(play High to Project) = lo/hi
@@ -154,7 +159,7 @@ function _choosePair(state, playerId, player, pairs) {
     case 'asshole': {
       const roll = Math.random() * 100;
       // Sort all effort cards ascending across all pairs
-      const effortPairs = pairs.filter(([a, b]) => a.type === 'effort' && b.type === 'effort');
+      const effortPairs = pairs.filter(([a, b]) => a.type !== 'copy' && b.type !== 'copy');
       if (effortPairs.length === 0) return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
 
       // Flatten to get globally sorted effort cards
@@ -177,7 +182,7 @@ function _choosePair(state, playerId, player, pairs) {
     // ── REGULAR: close to average ─────────────────────────
     case 'regular': {
       const roll = Math.random() * 100;
-      const effortPairs = pairs.filter(([a, b]) => a.type === 'effort' && b.type === 'effort');
+      const effortPairs = pairs.filter(([a, b]) => a.type !== 'copy' && b.type !== 'copy');
       if (effortPairs.length === 0) return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
 
       // Get all effort cards across valid pairs, sorted by distance from avg
@@ -221,7 +226,7 @@ function _choosePair(state, playerId, player, pairs) {
     // ── GTO: state-adjusted mixed ─────────────────────────
     case 'gto': {
       const roll = Math.random() * 100;
-      const effortPairs = pairs.filter(([a, b]) => a.type === 'effort' && b.type === 'effort');
+      const effortPairs = pairs.filter(([a, b]) => a.type !== 'copy' && b.type !== 'copy');
       if (effortPairs.length === 0) return { projectCard: pairs[0][0], partyCard: pairs[0][1] };
 
       const myFails   = totalFails(player);
@@ -606,18 +611,18 @@ function _pickSnitchTarget(state, playerId, player, others) {
 
 function _actionDrawPair(state, playerId, player) {
   const available = getAvailablePairKeys(state, playerId);
-  if (available.length === 0) {
-    // No pair available — skip (shouldn't normally happen)
-    return { type: 'DRAW_PAIR', key: null };
-  }
+  if (available.length === 0) return { type: 'DRAW_PAIR', key: null };
 
-  // Strategy: prefer higher-value pairs to maximise party pile
+  // Score each available pair (higher = preferred)
   const scored = available.map(key => {
-    if (key === 'copy+copy') return { key, score: 100 }; // copy pairs very valuable
-    const [a, b] = key.split('+').map(Number);
-    return { key, score: Math.max(a, b) };
+    switch (key) {
+      case '0+8':    return { key, score: 8 };   // high effort card available
+      case 'cram':   return { key, score: 6 };   // cram-6 + synergy bonus potential
+      case 'colead': return { key, score: 5 };   // value 4 + potential party pile transfer
+      case 'cheat':  return { key, score: 4 };   // value 5 but risky with multiple cheats
+      default:       return { key, score: 3 };
+    }
   });
   scored.sort((x, y) => y.score - x.score);
-
   return { type: 'DRAW_PAIR', key: scored[0].key };
 }

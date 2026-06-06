@@ -15,16 +15,24 @@ export const BREAK_SEMESTERS = new Set([2, 4, 6]);
 
 // ── Card display data ─────────────────────────────────────
 export const CARD_NAMES = {
+  // Regular effort cards
   0:'Checked Out', 1:'Phone It In', 2:'Half Baked', 3:'Ghost Mode',
   4:'Dedication',  5:'Night Owl',   6:'Laser Focus', 7:'Extra Mile',
   8:'All In',      copy:'X2 Copy',
+  // Special semester-break cards
+  cram:   'Cram',
+  cheat:  'Cheat',
+  colead: 'Co-Lead',
 };
 
 // Image filenames for ./cards/effort/ (new artwork, compressed for web)
+// Special cards use a composite key: type + value (e.g. 'cram6', 'cram2')
 export const EFFORT_IMGS = {
-  0:'0.jpg', 1:'1.jpg', 2:'2.jpg', 3:'3.jpg',
-  4:'4.jpg', 5:'5.jpg', 6:'6.jpg', 7:'7.jpg',
-  8:'8.jpg', copy:'Copy.jpg',
+  0:'0.jpg',  1:'1.jpg',  2:'2.jpg',  3:'3.jpg',
+  4:'4.jpg',  5:'5.jpg',  6:'6.jpg',  7:'7.jpg',
+  8:'8.jpg',  copy:'Copy.jpg',
+  cram6:'cram6.jpg', cram2:'cram2.jpg',
+  cheat:'cheat5.jpg', colead:'colead.jpg',
 };
 
 // ── Fixed starting hand ───────────────────────────────────
@@ -33,29 +41,26 @@ export const EFFORT_IMGS = {
 export const STARTING_HAND_VALUES = [1, 2, 3, 4, 4, 5, 6, 7, 'copy', 'copy'];
 
 // ── Valid pool pairs (for semester break draws) ───────────
+// Each entry defines a drawable pair: key (string ID), and the two cards.
+// 6 of each pair are placed in the pool; no "already drawn" restriction.
 export const POOL_PAIRS = [
-  [0, 8], [1, 7], [2, 6], [3, 5], [4, 4], ['copy', 'copy'],
+  { key: '0+8',    typeA: 'effort', valueA: 0,  typeB: 'effort', valueB: 8 },
+  { key: 'cram',   typeA: 'cram',   valueA: 6,  typeB: 'cram',   valueB: 2 },
+  { key: 'cheat',  typeA: 'cheat',  valueA: 5,  typeB: 'cheat',  valueB: 5 },
+  { key: 'colead', typeA: 'colead', valueA: 4,  typeB: 'colead', valueB: 4 },
 ];
-
-export function pairKey(a, b) {
-  if (a === 'copy' || b === 'copy') return 'copy+copy';
-  const lo = Math.min(Number(a), Number(b));
-  const hi = Math.max(Number(a), Number(b));
-  return `${lo}+${hi}`;
-}
 
 // ── Project targets table ─────────────────────────────────
 // [semesterIndex 0-7][playerCountIndex 0-5 = 3-8 players]
-// Base values +2 across the board for increased challenge
 export const PROJECT_TARGETS = [
-  [ 9, 12, 15, 18, 21, 24],  // Semester 1 — ENGL 1201
-  [10, 13, 16, 19, 22, 25],  // Semester 2 — ARTS 1202
-  [11, 14, 17, 20, 23, 26],  // Semester 3 — HIST 2303
-  [12, 15, 18, 22, 25, 28],  // Semester 4 — GEND 2304
-  [13, 16, 19, 24, 27, 30],  // Semester 5 — MATH 3305
-  [14, 18, 22, 26, 30, 34],  // Semester 6 — PHYS 3406
-  [15, 19, 23, 28, 32, 36],  // Semester 7 — CHEM 4407
-  [16, 20, 25, 30, 34, 38],  // Semester 8 — ENGG 4508
+  [10, 13, 16, 19, 22, 25],  // Semester 1 — ENGL 1201
+  [11, 15, 18, 22, 24, 28],  // Semester 2 — ARTS 1202
+  [12, 16, 20, 24, 28, 32],  // Semester 3 — HIST 2303
+  [13, 17, 22, 26, 30, 35],  // Semester 4 — GEND 2304
+  [14, 18, 23, 28, 33, 37],  // Semester 5 — MATH 3305
+  [15, 20, 25, 30, 35, 40],  // Semester 6 — PHYS 3406
+  [16, 21, 26, 32, 37, 42],  // Semester 7 — CHEM 4407
+  [17, 22, 28, 34, 40, 44],  // Semester 8 — ENGG 4508
 ];
 
 export const SEMESTER_NAMES = [
@@ -64,14 +69,8 @@ export const SEMESTER_NAMES = [
 ];
 
 export const COURSE_NAMES = [
-  'English',
-  'Creative Arts',
-  'History',
-  'Gender Studies',
-  'Mathematics',
-  'Physics',
-  'Chemistry',
-  'Engineering',
+  'English', 'Creative Arts', 'History', 'Gender Studies',
+  'Mathematics', 'Physics', 'Chemistry', 'Engineering',
 ];
 
 export function getTarget(semester, activeCount, difficulty = 1) {
@@ -110,23 +109,41 @@ export const LEADERSHIP_SKILLS = [
 ];
 
 // ── Card factory ──────────────────────────────────────────
-export function makeCard(value) {
+// type: 'effort' | 'copy' | 'cram' | 'cheat' | 'colead'
+// value: number or 'copy'
+export function makeCard(value, type) {
+  const resolvedType = type || (value === 'copy' ? 'copy' : 'effort');
   return {
     id:    uid('c'),
+    type:  resolvedType,
     value,
-    type:  value === 'copy' ? 'copy' : 'effort',
-    name:  CARD_NAMES[value] ?? String(value),
+    name:  CARD_NAMES[resolvedType] ?? CARD_NAMES[value] ?? String(value),
   };
 }
 
 // ── Build the effort pool ─────────────────────────────────
-// Generous supply so semester-break draws always work.
+// Pool is used ONLY for semester-break draws.
+// 6 of each pair = 6 pairs × 4 types.
 export function buildInitialPool() {
   const pool = [];
-  const counts = { 0:8, 1:8, 2:8, 3:8, 4:8, 5:8, 6:8, 7:8, 8:8, copy:16 };
-  for (const [v, count] of Object.entries(counts)) {
-    const value = v === 'copy' ? 'copy' : Number(v);
-    for (let i = 0; i < count; i++) pool.push(makeCard(value));
+  const PER_TYPE = 6;
+  // 0+8 pairs
+  for (let i = 0; i < PER_TYPE; i++) {
+    pool.push(makeCard(0, 'effort'));
+    pool.push(makeCard(8, 'effort'));
+  }
+  // Cram pairs (6+2)
+  for (let i = 0; i < PER_TYPE; i++) {
+    pool.push(makeCard(6, 'cram'));
+    pool.push(makeCard(2, 'cram'));
+  }
+  // Cheat pairs (5+5)
+  for (let i = 0; i < PER_TYPE * 2; i++) {
+    pool.push(makeCard(5, 'cheat'));
+  }
+  // Co-Lead pairs (4+4)
+  for (let i = 0; i < PER_TYPE * 2; i++) {
+    pool.push(makeCard(4, 'colead'));
   }
   return pool;
 }
@@ -144,8 +161,8 @@ function makePlayer(cfg) {
     isHuman: !!cfg.isHuman,
     aiMode:  cfg.aiMode || 'regular',
 
-    hand:      [],   // current effort cards
-    partyPile: [],   // accumulated face-down party pile
+    hand:      [],
+    partyPile: [],
 
     groupFails:      0,
     individualFails: 0,
@@ -154,16 +171,16 @@ function makePlayer(cfg) {
 
     // Per-semester (reset each semester)
     playedPair:          false,
-    semesterProjectCard: null,   // { id, value }
+    semesterProjectCard: null,
     semesterPartyCard:   null,
 
     // Cards to discard at end of semester (from blame/snitch)
-    markedForDiscard: [],   // array of partyPile indices
+    markedForDiscard: [],
 
     // AI memory
-    suspicionScores:  {},   // { playerId: cumulativeInferredParty }
-    blamedByHistory:  [],   // [playerId] of players who blamed this AI
-    drawnPairs:       [],   // pair keys already drawn: ['0+8', 'copy+copy', ...]
+    suspicionScores:  {},
+    blamedByHistory:  [],
+    drawnPairs:       [],   // kept for reference but no longer blocks re-draws
 
     academicPoints: 0,
 
@@ -173,8 +190,7 @@ function makePlayer(cfg) {
 }
 
 // ── createState ───────────────────────────────────────────
-export function createState(playerConfigs, difficulty = 1) {
-  // Build player map first (keep original order for lookup)
+export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exam_fail') {
   const players = {};
   for (const cfg of playerConfigs) {
     const p = makePlayer(cfg);
@@ -182,9 +198,7 @@ export function createState(playerConfigs, difficulty = 1) {
     players[cfg.id] = p;
   }
 
-  // Randomise starting order so human is not always first
   const playerOrder = shuffle(playerConfigs.map(p => p.id));
-
   const effortPool     = buildInitialPool();
   const leadershipDeck = shuffle([...LEADERSHIP_SKILLS]);
   const faceUpSkill    = leadershipDeck.shift() ?? null;
@@ -192,58 +206,49 @@ export function createState(playerConfigs, difficulty = 1) {
   const activeCount    = playerOrder.length;
 
   return {
-    // ── Phase & progress ──────────────────────────────────
-    // Phases: PLAYING | REVEAL | DEADLINE | BLAME | BLAME_VOTE |
-    //         SNITCH | BREAK | BREAK_DRAW | GAMEOVER
     phase:          'PLAYING',
     semester:       1,
     totalSemesters: TOTAL_SEMESTERS,
     semesterName:   SEMESTER_NAMES[0],
 
-    // ── Project ───────────────────────────────────────────
     difficulty,
     projectTarget:     getTarget(1, activeCount, difficulty),
-    targetBonus:       0,   // can be negative (Curve the Grade)
-    nextTargetPenalty: 0,   // applied next semester
+    targetBonus:       0,
+    nextTargetPenalty: 0,
     effortPool,
     projectPile:       [],
 
-    // ── Turn management ───────────────────────────────────
     playerOrder,
     activePlayerId:  playerOrder[0],
     projectLeaderId: playerOrder[0],
 
-    // ── Players ───────────────────────────────────────────
     players,
 
-    // ── Leadership skills ─────────────────────────────────
     leadershipDeck,
     faceUpSkill,
     faceDownSkill,
     chosenSkill:          null,
     chosenSkillWasFaceDown: false,
-    pendingSkillStep:     null,   // 'realign-pick-target' | 'extra-credit-pick' | null
+    pendingSkillStep:     null,
     skillEffects:         {},
     realignTargetId:      null,
 
-    // ── Blame & voting ────────────────────────────────────
     blameAccusedId:       null,
-    blameVotes:           {},    // { voterId: targetId }
+    blameVotes:           {},
     blameVotersRemaining: [],
 
-    // ── Snitch chain ──────────────────────────────────────
     snitchCurrentId: null,
     snitchChain:     [],
-    snitchedThisTurn: [],        // playerIds already snitched this semester (can't be targeted twice)
+    snitchedThisTurn: [],
 
-    // ── Semester break draw ───────────────────────────────
     breakDrawOrder:   [],
     breakDrawCurrent: null,
 
-    // ── Tracking ──────────────────────────────────────────
     projectsFailed: 0,
 
-    // ── Game log ──────────────────────────────────────────
+    // Co-Lead fail penalty mode: 'exam_fail' | 'discard'
+    coLeadFailMode,
+
     log: [],
   };
 }
