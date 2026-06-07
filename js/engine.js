@@ -990,6 +990,33 @@ export function semesterBreak(state) {
     }
   }
 
+  // ── Two Players Remaining rule ───────────────────────────
+  // Check how many active (non-expelled) players remain BEFORE
+  // doing anything else that depends on the player roster — most
+  // importantly, before rotating the Project Leader. Rotating the
+  // leader using a roster that no longer contains the (just-expelled)
+  // current leader is what caused the freeze the user reported.
+  const activeNow = activePlayers(state);
+
+  // Only trigger the early-end rule if the game STARTED with more
+  // than two players and eliminations have brought it down to two
+  // (or fewer) — a game that began with two players should play on
+  // normally to its natural conclusion.
+  if (state.playerOrder.length > 2 && activeNow.length <= 2) {
+    return _endGameEliminationLimit(state, events, activeNow);
+  }
+
+  // Degenerate safety net (should not normally be reachable): if no
+  // active players remain at all, end the game rather than divide by
+  // zero / freeze when picking the next leader.
+  if (activeNow.length === 0) {
+    state.phase = 'GAMEOVER';
+    _computeFinalScores(state);
+    events.push(evt('GAME_OVER', { players: state.players }));
+    addLog(state, { type: 'system', text: 'No active players remain — game over!' });
+    return events;
+  }
+
   if (state.semester >= state.totalSemesters) {
     _computeFinalScores(state);
     state.phase = 'GAMEOVER';
@@ -1064,6 +1091,55 @@ export function semesterBreak(state) {
       text: `Semester ${state.semester} — ${state.semesterName}. Target: ${state.projectTarget}. Leader: ${state.players[state.projectLeaderId].name}.`,
     });
   }
+
+  return events;
+}
+
+// ── _endGameEliminationLimit ──────────────────────────────
+// "Two Players Remaining" rule: if eliminations have reduced the
+// game (which started with more than two players) down to two —
+// or fewer — active players, the game ends immediately.
+//   • Each remaining player takes half of the cards left in their
+//     hand (rounded up) and places them face-up on top of their
+//     Party Pile.
+//   • Any Group Projects that would still have been attempted are
+//     considered to have been PASSED for Academic Goal scoring.
+function _endGameEliminationLimit(state, events, active) {
+  addLog(state, {
+    type: 'system',
+    text: `Eliminations have reduced the game to ${active.length} active player${active.length === 1 ? '' : 's'} — the game ends immediately!`,
+  });
+
+  // Each remaining player moves half their hand (rounded up) onto
+  // the top of their Party Pile, face-up, before final scoring.
+  for (const id of active) {
+    const p = state.players[id];
+    const halfCount = Math.ceil(p.hand.length / 2);
+    if (halfCount > 0) {
+      const taken = p.hand.splice(0, halfCount);
+      for (const c of taken) p.partyPile.push({ ...c, revealed: true });
+      addLog(state, {
+        type: 'system',
+        text: `${p.name} places ${taken.length} card${taken.length === 1 ? '' : 's'} from their hand onto the top of their Party Pile.`,
+        playerId: id,
+      });
+    }
+  }
+
+  // Any Group Projects that never got played are counted as PASSED
+  // for the purposes of the final Academic Goal (pass/fail) verdict.
+  const remaining = Math.max(0, state.totalSemesters - state.semester);
+  for (let i = 0; i < remaining; i++) {
+    addLog(state, {
+      type: 'pass',
+      text: `${SEMESTER_NAMES[state.semester + i] ?? `Semester ${state.semester + 1 + i}`} is considered PASSED — the game ended early due to eliminations.`,
+    });
+  }
+
+  state.phase = 'GAMEOVER';
+  _computeFinalScores(state);
+  events.push(evt('GAME_OVER', { players: state.players }));
+  addLog(state, { type: 'system', text: 'Game over — eliminations have ended the game early. Final scores calculated.' });
 
   return events;
 }
