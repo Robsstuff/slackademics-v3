@@ -419,7 +419,12 @@ function _stepEffortUpdated(ev, state) {
     callback({ total, skillBonus, skillName }) {
       // Set skill bonus so renderer can split the bar green/blue
       setSkillBonus(skillBonus);
-      _animCounter(0, total, 420);
+      // Start from wherever the counter currently shows — not from 0 —
+      // so the number only ever counts upward during sequential card
+      // reveals rather than resetting to 0 between each card flip.
+      const valEl   = document.getElementById('effort-val');
+      const fromVal = valEl ? (parseInt(valEl.textContent, 10) || 0) : 0;
+      _animCounter(fromVal, total, 420);
       // Also update the text tag below the bar
       const tag = document.getElementById('skill-bonus-tag');
       if (tag) {
