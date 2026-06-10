@@ -513,13 +513,18 @@ function _actionVote(state, playerId, player) {
   const accusedId = state.blameAccusedId;
   const leaderId  = state.projectLeaderId;
 
-  // Vote based on suspicion — who is more suspicious?
-  _updateSuspicion(state, playerId, player);
-  const accusedSus = player.suspicionScores[accusedId] ?? 0;
-  const leaderSus  = player.suspicionScores[leaderId]  ?? 0;
+  // 40% chance: vote randomly — peers don't all reach the same conclusion
+  if (Math.random() < 0.40) {
+    return { type: 'CAST_VOTE', voteFor: Math.random() < 0.5 ? accusedId : leaderId };
+  }
 
-  const voteFor = accusedSus >= leaderSus ? accusedId : leaderId;
-  return { type: 'CAST_VOTE', voteFor };
+  // Remaining 60%: suspicion-based, but add small random noise so identical
+  // suspicion scores don't always break the same way across all AI voters.
+  _updateSuspicion(state, playerId, player);
+  const accusedSus = (player.suspicionScores[accusedId] ?? 0) + Math.random() * 2;
+  const leaderSus  = (player.suspicionScores[leaderId]  ?? 0) + Math.random() * 2;
+
+  return { type: 'CAST_VOTE', voteFor: accusedSus >= leaderSus ? accusedId : leaderId };
 }
 
 // ─────────────────────────────────────────────────────────
