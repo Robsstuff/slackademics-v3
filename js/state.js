@@ -44,10 +44,11 @@ export const STARTING_HAND_VALUES = [1, 2, 3, 4, 4, 5, 6, 7, 'copy', 'copy'];
 // Each entry defines a drawable pair: key (string ID), and the two cards.
 // 6 of each pair are placed in the pool; no "already drawn" restriction.
 export const POOL_PAIRS = [
-  { key: '0+8',    typeA: 'effort', valueA: 0,  typeB: 'effort', valueB: 8 },
-  { key: 'cram',   typeA: 'cram',   valueA: 6,  typeB: 'cram',   valueB: 2 },
-  { key: 'cheat',  typeA: 'cheat',  valueA: 5,  typeB: 'cheat',  valueB: 5 },
-  { key: 'colead', typeA: 'colead', valueA: 4,  typeB: 'colead', valueB: 4 },
+  { key: '0+8',    typeA: 'effort', valueA: 0,      typeB: 'effort', valueB: 8 },
+  { key: 'cram',   typeA: 'cram',   valueA: 6,      typeB: 'cram',   valueB: 2 },
+  { key: 'cheat',  typeA: 'cheat',  valueA: 5,      typeB: 'cheat',  valueB: 5 },
+  { key: 'colead', typeA: 'colead', valueA: 4,      typeB: 'colead', valueB: 4 },
+  { key: 'copy',   typeA: 'copy',   valueA: 'copy', typeB: 'copy',   valueB: 'copy' },
 ];
 
 // ── Project targets table ─────────────────────────────────
@@ -144,6 +145,10 @@ export function buildInitialPool() {
   // Co-Lead pairs (4+4)
   for (let i = 0; i < PER_TYPE * 2; i++) {
     pool.push(makeCard(4, 'colead'));
+  }
+  // X2 Copy pairs (copy+copy)
+  for (let i = 0; i < PER_TYPE * 2; i++) {
+    pool.push(makeCard('copy', 'copy'));
   }
   return pool;
 }

@@ -604,6 +604,31 @@
 .overlay-actions { display: flex; flex-direction: column; gap: 9px; }
 .overlay-actions > * { width: 100%; }
 
+/* ── Semester break pair-picker — card artwork grid ─── */
+.break-draw-sheet { max-width: 580px; }
+.break-pair-grid {
+  display: flex; flex-wrap: wrap; gap: 12px;
+  justify-content: center; margin-top: 14px;
+}
+.break-pair-option {
+  display: flex; flex-direction: column; align-items: center;
+  cursor: pointer; border-radius: 12px; padding: 8px 10px;
+  border: 2.5px solid transparent;
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.break-pair-option:hover, .break-pair-option:focus {
+  transform: scale(1.06); outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 4px 20px rgba(0,0,0,.35);
+}
+.break-pair-cards { display: flex; gap: 5px; }
+.break-pair-card-img { width: 62px; border-radius: 6px; display: block; }
+.break-pair-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--muted);
+  margin-top: 7px; text-align: center; max-width: 130px;
+}
+
 /* ── Blame vote overlay — card-image voting UI ─────── */
 .blame-vote-sheet { max-width: 440px; }
 .blame-vote-cards {

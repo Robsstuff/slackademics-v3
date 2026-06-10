@@ -602,60 +602,68 @@ function _humanSnitchPass() {
 //  SEMESTER BREAK DRAW
 // ─────────────────────────────────────────────────────────
 // Human's turn to draw a pair — opens a selector overlay
+// Image and description for each pool pair key
+const _PAIR_DISPLAY = {
+  '0+8':    { imgA: './cards/effort/0.jpg',        imgB: './cards/effort/8.jpg',        altA: '0',        altB: '8',        label: '0 + 8 Effort' },
+  'cram':   { imgA: './cards/effort/cram6.jpg',    imgB: './cards/effort/cram2.jpg',    altA: 'Cram 6',   altB: 'Cram 2',   label: 'Cram · +1 per Cram in pile' },
+  'cheat':  { imgA: './cards/effort/cheat5.jpg',   imgB: './cards/effort/cheat5.jpg',   altA: 'Cheat 5',  altB: 'Cheat 5',  label: 'Cheat · −2 per other Cheat' },
+  'colead': { imgA: './cards/effort/colead.jpg',   imgB: './cards/effort/colead.jpg',   altA: 'Co-Lead',  altB: 'Co-Lead',  label: 'Co-Lead · transfers on pass' },
+  'copy':   { imgA: './cards/effort/Copy.jpg',     imgB: './cards/effort/Copy.jpg',     altA: 'X2 Copy',  altB: 'X2 Copy',  label: 'X2 Copy · doubles next card' },
+};
+
 export function openBreakDrawOverlay() {
   if (!_state || queueBusy()) return;
   if (_state.phase !== 'BREAK_DRAW') return;
   if (_state.breakDrawCurrent !== _humanId) return;
 
   const available = getAvailablePairKeys(_state);
-  if (available.length === 0) {
-    _advance();
-    return;
-  }
+  if (available.length === 0) { _advance(); return; }
 
-  const existingOverlay = document.getElementById('break-draw-overlay');
-  if (existingOverlay) return;
+  if (document.getElementById('break-draw-overlay')) return;
 
   const overlay = document.createElement('div');
   overlay.id        = 'break-draw-overlay';
   overlay.className = 'overlay-screen active';
 
-  const labels = {
-    '0+8':    '0 + 8 (effort)',
-    'cram':   'Cram  6 + 2  (+1 per Cram in any pile)',
-    'cheat':  'Cheat  5 + 5  (−2 per other Cheat in any pile)',
-    'colead': 'Co-Lead  4 + 4  (transfers to Party Pile on pass)',
-  };
-
-  let btns = available.map(key =>
-    `<button class="btn-p break-pair-btn" data-key="${key}">${labels[key] ?? key}</button>`
-  ).join('');
+  const pairItems = available.map(key => {
+    const d = _PAIR_DISPLAY[key] ?? { imgA: '', imgB: '', altA: key, altB: '', label: key };
+    return `
+      <div class="break-pair-option" data-key="${key}" role="button" tabindex="0">
+        <div class="break-pair-cards">
+          <img src="${d.imgA}" alt="${d.altA}" class="break-pair-card-img">
+          <img src="${d.imgB}" alt="${d.altB}" class="break-pair-card-img">
+        </div>
+        <div class="break-pair-label">${d.label}</div>
+      </div>`;
+  }).join('');
 
   overlay.innerHTML = `
-    <div class="overlay-sheet">
-      <div class="overlay-title">Draw a New Pair</div>
-      <div class="overlay-body">Choose one pair to add to your hand for the new semester.</div>
-      <div class="overlay-actions">${btns}</div>
+    <div class="overlay-sheet break-draw-sheet">
+      <div class="overlay-title">Semester Break — Draw a Pair</div>
+      <div class="overlay-body">Click a pair to add both cards to your hand for the new semester.</div>
+      <div class="break-pair-grid">${pairItems}</div>
     </div>`;
 
-  overlay.querySelectorAll('.break-pair-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      overlay.remove();
-      const key = btn.dataset.key;
-      let events;
-      try { events = drawPair(_state, { playerId: _humanId, key }); }
-      catch (err) { console.warn(err.message); return; }
-      // Cascade remaining AI drawers
-      while (_state.phase === 'BREAK_DRAW' && _state.breakDrawCurrent) {
-        const nextP = _state.players[_state.breakDrawCurrent];
-        if (!nextP || nextP.isHuman) break;
-        const a = getAIAction(_state, _state.breakDrawCurrent);
-        if (a?.type === 'DRAW_PAIR' && a.key) {
-          events.push(...drawPair(_state, { playerId: _state.breakDrawCurrent, key: a.key }));
-        } else break;
-      }
-      _dispatchEvents(events);
-    });
+  const pick = (key) => {
+    overlay.remove();
+    let events;
+    try { events = drawPair(_state, { playerId: _humanId, key }); }
+    catch (err) { console.warn(err.message); return; }
+    // Cascade remaining AI drawers
+    while (_state.phase === 'BREAK_DRAW' && _state.breakDrawCurrent) {
+      const nextP = _state.players[_state.breakDrawCurrent];
+      if (!nextP || nextP.isHuman) break;
+      const a = getAIAction(_state, _state.breakDrawCurrent);
+      if (a?.type === 'DRAW_PAIR' && a.key) {
+        events.push(...drawPair(_state, { playerId: _state.breakDrawCurrent, key: a.key }));
+      } else break;
+    }
+    _dispatchEvents(events);
+  };
+
+  overlay.querySelectorAll('.break-pair-option').forEach(el => {
+    el.addEventListener('click',   () => pick(el.dataset.key));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') pick(el.dataset.key); });
   });
 
   document.body.appendChild(overlay);
