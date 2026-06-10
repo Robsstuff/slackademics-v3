@@ -604,6 +604,60 @@
 .overlay-actions { display: flex; flex-direction: column; gap: 9px; }
 .overlay-actions > * { width: 100%; }
 
+/* ── Blame vote overlay — card-image voting UI ─────── */
+.blame-vote-sheet { max-width: 440px; }
+.blame-vote-cards {
+  display: flex; gap: 16px; justify-content: center;
+  margin: 14px 0 4px;
+}
+.blame-vote-card {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  cursor: pointer; border-radius: 12px; padding: 8px;
+  border: 2.5px solid transparent;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+}
+.blame-vote-card:hover, .blame-vote-card:focus {
+  transform: scale(1.05); outline: none;
+  box-shadow: 0 4px 24px rgba(0,0,0,.35);
+  border-color: var(--accent);
+}
+.blame-vote-img { width: 130px; border-radius: 8px; display: block; }
+.blame-vote-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; padding: 2px 7px; border-radius: 99px; margin-top: 6px;
+}
+.leader-badge  { background: var(--teal-light, #ccfbf1); color: #0f766e; }
+.accused-badge { background: var(--red-light,  #fee2e2); color: #b91c1c; }
+.blame-vote-name  { font-size: 14px; font-weight: 700; margin-top: 4px; text-align: center; }
+.blame-vote-stats { font-size: 11px; color: var(--muted); text-align: center; margin-top: 2px; }
+
+/* ── Blame card reveal area (during vote tally) ─────── */
+.blame-reveal-area {
+  position: fixed; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 820;
+  display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+  background: rgba(0,0,0,.72); border-radius: 14px; padding: 14px 18px;
+  max-width: 90vw;
+}
+.blame-reveal-card {
+  display: flex; flex-direction: column; align-items: center;
+  width: 68px;
+}
+.blame-card-img   { width: 68px; height: 92px; object-fit: cover; border-radius: 6px; display: block; }
+.blame-voter-name {
+  font-size: 9px; color: #fff; text-align: center; margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 68px;
+}
+
+/* ── Special winner row on scoreboard ───────────────── */
+.score-row.special-winner {
+  background: linear-gradient(135deg, rgba(245,158,11,.18) 0%, transparent 100%);
+  border-left: 3px solid var(--accent);
+}
+.score-row.special-winner .s-rank { color: var(--accent); font-size: 20px; }
+.score-row.special-winner .s-av   { background: var(--accent); }
+
 /* ── game-main: flex column in all viewports ────────── */
 .game-main {
   flex: 1; min-width: 0;

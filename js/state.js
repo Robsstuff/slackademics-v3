@@ -246,6 +246,11 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
 
     projectsFailed: 0,
 
+    // End-game metadata (set when GAMEOVER is reached)
+    // 'semesters-complete' | 'elimination-limit' | 'all-expelled'
+    gameEndReason:  null,
+    specialWinners: [],  // player IDs declared winner by the all-expelled rule
+
     // Co-Lead fail penalty mode: 'exam_fail' | 'discard'
     coLeadFailMode,
 

@@ -451,10 +451,10 @@ function _actionBlame(state, playerId, player) {
   // Update suspicion scores from revealed project cards
   _updateSuspicion(state, playerId, player);
 
-  const roll = Math.random() * 100;
+  const roll = Math.random();
 
-  if (roll > 70) {
-    // Personality logic
+  // 30% chance — personality-driven targeting
+  if (roll > 0.70) {
     switch (_getPersonality(player.aiMode)) {
       case 'vindictive': {
         const retarget = player.blamedByHistory.find(id => targets.includes(id));
@@ -462,17 +462,25 @@ function _actionBlame(state, playerId, player) {
         break;
       }
       case 'fail-targeter': {
-        const target = targets.reduce((m, id) => totalFails(state.players[id]) > totalFails(state.players[m]) ? id : m, targets[0]);
+        const target = targets.reduce((m, id) =>
+          totalFails(state.players[id]) > totalFails(state.players[m]) ? id : m, targets[0]);
         return { type: 'ACCUSE', accusedId: target };
       }
       case 'winner-targeter': {
-        const target = targets.reduce((m, id) => computePileTotal(state.players[id].partyPile) > computePileTotal(state.players[m].partyPile) ? id : m, targets[0]);
+        const target = targets.reduce((m, id) =>
+          computePileTotal(state.players[id].partyPile) > computePileTotal(state.players[m].partyPile)
+            ? id : m, targets[0]);
         return { type: 'ACCUSE', accusedId: target };
       }
     }
   }
 
-  // Main logic: highest suspicion score
+  // 40% chance — completely random (prevents always targeting the high-card player)
+  if (roll < 0.40) {
+    return { type: 'ACCUSE', accusedId: targets[Math.floor(Math.random() * targets.length)] };
+  }
+
+  // 30% chance (and personality fallthrough) — highest suspicion score
   const accused = targets.reduce((m, id) => {
     const s1 = player.suspicionScores[m]  ?? 0;
     const s2 = player.suspicionScores[id] ?? 0;

@@ -990,37 +990,30 @@ export function semesterBreak(state) {
     }
   }
 
-  // ── Two Players Remaining rule ───────────────────────────
-  // Check how many active (non-expelled) players remain BEFORE
-  // doing anything else that depends on the player roster — most
-  // importantly, before rotating the Project Leader. Rotating the
-  // leader using a roster that no longer contains the (just-expelled)
-  // current leader is what caused the freeze the user reported.
+  // ── Elimination checks — done BEFORE leader rotation ───────
+  // Computing activeNow here (after finalising expulsions) prevents
+  // projectLeaderId from pointing at an expelled player, which was
+  // the cause of the reported game freeze.
   const activeNow = activePlayers(state);
 
-  // Only trigger the early-end rule if the game STARTED with more
-  // than two players and eliminations have brought it down to two
-  // (or fewer) — a game that began with two players should play on
-  // normally to its natural conclusion.
-  if (state.playerOrder.length > 2 && activeNow.length <= 2) {
+  // All players expelled this round → special winner via highest
+  // project card played in the final round (copy counts as zero).
+  if (activeNow.length === 0) {
+    return _endGameAllExpelled(state, events);
+  }
+
+  // One survivor → outright winner.
+  // Two survivors from a game that started with 3+ → half-hand rule.
+  if (activeNow.length === 1 ||
+      (state.playerOrder.length > 2 && activeNow.length === 2)) {
     return _endGameEliminationLimit(state, events, activeNow);
   }
 
-  // Degenerate safety net (should not normally be reachable): if no
-  // active players remain at all, end the game rather than divide by
-  // zero / freeze when picking the next leader.
-  if (activeNow.length === 0) {
-    state.phase = 'GAMEOVER';
-    _computeFinalScores(state);
-    events.push(evt('GAME_OVER', { players: state.players }));
-    addLog(state, { type: 'system', text: 'No active players remain — game over!' });
-    return events;
-  }
-
   if (state.semester >= state.totalSemesters) {
+    state.gameEndReason = 'semesters-complete';
     _computeFinalScores(state);
     state.phase = 'GAMEOVER';
-    events.push(evt('GAME_OVER', { players: state.players }));
+    events.push(evt('GAME_OVER', { players: state.players, gameEndReason: 'semesters-complete' }));
     addLog(state, { type: 'system', text: 'All 8 semesters complete — game over!' });
     return events;
   }
@@ -1095,6 +1088,51 @@ export function semesterBreak(state) {
   return events;
 }
 
+// ── _endGameAllExpelled ───────────────────────────────────
+// Called when ALL players have been expelled simultaneously.
+// No one survives to score normally, so the winner is determined
+// by who played the highest value card to the project pile in the
+// final round (copy cards count as 0 for this comparison).
+function _endGameAllExpelled(state, events) {
+  addLog(state, { type: 'system', text: 'All players have been expelled — the game ends!' });
+
+  // copy → 0; any type with numeric value → that value; no card → -1
+  const cardVal = c =>
+    !c ? -1 : (c.type === 'copy' || c.value === 'copy' ? 0 : Number(c.value ?? -1));
+
+  let maxVal = -1;
+  for (const id of state.playerOrder) {
+    const v = cardVal(state.players[id].semesterProjectCard);
+    if (v > maxVal) maxVal = v;
+  }
+
+  const winners = maxVal >= 0
+    ? state.playerOrder.filter(id => cardVal(state.players[id].semesterProjectCard) === maxVal)
+    : [];
+
+  state.gameEndReason  = 'all-expelled';
+  state.specialWinners = winners;
+
+  if (winners.length > 0) {
+    const names = winners.map(id => state.players[id].name).join(' & ');
+    addLog(state, {
+      type: 'system',
+      text: `Special Win — ${names} played the highest project card (${maxVal} effort) and is declared winner${winners.length > 1 ? 's' : ''}!`,
+    });
+  } else {
+    addLog(state, { type: 'system', text: 'No project cards found — no winner can be determined.' });
+  }
+
+  state.phase = 'GAMEOVER';
+  _computeFinalScores(state);
+  events.push(evt('GAME_OVER', {
+    players:        state.players,
+    gameEndReason:  'all-expelled',
+    specialWinners: winners,
+  }));
+  return events;
+}
+
 // ── _endGameEliminationLimit ──────────────────────────────
 // "Two Players Remaining" rule: if eliminations have reduced the
 // game (which started with more than two players) down to two —
@@ -1136,9 +1174,10 @@ function _endGameEliminationLimit(state, events, active) {
     });
   }
 
+  state.gameEndReason = 'elimination-limit';
   state.phase = 'GAMEOVER';
   _computeFinalScores(state);
-  events.push(evt('GAME_OVER', { players: state.players }));
+  events.push(evt('GAME_OVER', { players: state.players, gameEndReason: 'elimination-limit' }));
   addLog(state, { type: 'system', text: 'Game over — eliminations have ended the game early. Final scores calculated.' });
 
   return events;

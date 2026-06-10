@@ -642,9 +642,19 @@ export function renderScoreboard(state) {
   const body = document.querySelector('.score-body');
   if (!body) return;
 
+  const isAllExpelled     = state.gameEndReason === 'all-expelled';
+  const specialWinnersSet = new Set(state.specialWinners || []);
+
   const sorted = state.playerOrder
     .map(id => ({ id, ...state.players[id] }))
     .sort((a, b) => {
+      if (isAllExpelled) {
+        // Special winners float to the top; then by fewer fails
+        const aW = specialWinnersSet.has(a.id) ? 0 : 1;
+        const bW = specialWinnersSet.has(b.id) ? 0 : 1;
+        if (aW !== bW) return aW - bW;
+        return totalFails(a) - totalFails(b);
+      }
       if (a.isExpelled !== b.isExpelled) return a.isExpelled ? 1 : -1;
       return b.academicPoints - a.academicPoints;
     });
@@ -653,10 +663,21 @@ export function renderScoreboard(state) {
   const rows = sorted.map(p => {
     let rankDisplay, rowClass, ptsDisplay, ptsLabel, tagText;
 
-    if (p.isExpelled) {
+    const isSpecialWinner = isAllExpelled && specialWinnersSet.has(p.id);
+
+    if (isSpecialWinner) {
+      // All-expelled special winner: highlighted, star rank
+      rankDisplay = '&#9733;';
+      rowClass    = 'score-row winner special-winner';
+      ptsDisplay  = '&#8212;';
+      ptsLabel    = 'Special Win';
+      const fc    = state.players[p.id].semesterProjectCard;
+      const fv    = fc ? (fc.type === 'copy' ? 'Copy (0)' : fc.value) : '?';
+      tagText     = `Highest project card &mdash; ${fv} effort`;
+    } else if (p.isExpelled) {
       rankDisplay = '&mdash;';
       rowClass    = 'score-row expelled-row';
-      ptsDisplay  = '&mdash;';
+      ptsDisplay  = '0';          // show 0 (not dash) per game rules
       ptsLabel    = 'Expelled';
       tagText     = `Expelled &mdash; ${totalFails(p)} total fails`;
     } else {
@@ -684,23 +705,38 @@ export function renderScoreboard(state) {
     );
   });
 
-  const passCount = state.log.filter(e => e.type === 'pass').length;
-  const failCount = state.log.filter(e => e.type === 'fail' && e.text.startsWith('Project FAILED')).length;
-  const verdict   = passCount >= failCount ? 'PASS' : 'FAIL';
+  // Result card — different copy for all-expelled vs normal
+  let resultSection;
+  if (isAllExpelled) {
+    const winnerNames = (state.specialWinners || [])
+      .map(id => esc(state.players[id]?.name ?? '?')).join(' &amp; ') || '—';
+    resultSection =
+      `<div class="result-card">` +
+        `<div class="sec-lbl">Game Outcome</div>` +
+        `<div class="result-verdict fail">ALL EXPELLED</div>` +
+        `<div class="result-detail">Special Win: ${winnerNames} — highest project card in the final round.</div>` +
+      `</div>`;
+  } else {
+    const passCount = state.log.filter(e => e.type === 'pass').length;
+    const failCount = state.log.filter(e => e.type === 'fail' && e.text.startsWith('Project FAILED')).length;
+    const verdict   = passCount >= failCount ? 'PASS' : 'FAIL';
+    resultSection =
+      `<div class="result-card">` +
+        `<div class="sec-lbl">Group Project Result</div>` +
+        `<div class="result-verdict ${verdict.toLowerCase()}">${verdict}</div>` +
+        `<div class="result-detail">${passCount} semester${passCount !== 1 ? 's' : ''} passed, ${failCount} failed.</div>` +
+      `</div>`;
+  }
 
-  body.innerHTML =
-    rows.join('') +
-    `<div class="result-card">` +
-      `<div class="sec-lbl">Group Project Result</div>` +
-      `<div class="result-verdict ${verdict.toLowerCase()}">${verdict}</div>` +
-      `<div class="result-detail">${passCount} semester${passCount !== 1 ? 's' : ''} passed, ${failCount} failed.</div>` +
-    `</div>`;
+  body.innerHTML = rows.join('') + resultSection;
 
   const badge = document.querySelector('#s-score .hdr-badge');
   if (badge) badge.textContent = `${state.semester} / ${state.totalSemesters} Semesters`;
 
-  // Score tally animation
-  const ptEls = body.querySelectorAll('.score-row:not(.expelled-row) .s-pts-val');
+  // Score tally animation — skip special-winner rows (no numeric score)
+  const ptEls = body.querySelectorAll(
+    '.score-row:not(.expelled-row):not(.special-winner) .s-pts-val'
+  );
   ptEls.forEach((el, i) => {
     const finalVal = parseInt(el.textContent, 10);
     if (isNaN(finalVal) || finalVal <= 0) return;

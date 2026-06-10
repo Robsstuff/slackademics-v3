@@ -188,7 +188,7 @@ export function buildStepsFromEvents(events, state) {
         break;
 
       case 'VOTES_TALLIED':
-        steps.push(_stepVotesTallied(ev, state));
+        steps.push(..._stepsVotesTallied(ev, state));
         break;
 
       case 'TIE_INVESTIGATION':
@@ -381,7 +381,7 @@ function _stepsCardRevealed(ev, state) {
 
   const flipOut = {
     label: `FLIP_OUT_${card.id}`,
-    duration: 260,
+    duration: 180,   // was 260 — faster reveal
     overlap: 0,
     payload: { card },
     callback({ card }) {
@@ -393,7 +393,7 @@ function _stepsCardRevealed(ev, state) {
 
   const flipIn = {
     label: `FLIP_IN_${card.id}`,
-    duration: 320,
+    duration: 220,   // was 320 — faster reveal
     overlap: 0,
     payload: { card },
     callback({ card }) {
@@ -673,13 +673,85 @@ function _stepVotingStart(ev, state) {
   };
 }
 
-/* VOTES_TALLIED */
-function _stepVotesTallied(ev, state) {
-  return {
-    label: 'VOTES_TALLIED',
-    duration: 1200,
-    payload: { ev, state },
+/* VOTES_TALLIED — multi-step: blame card reveal → result banner */
+function _stepsVotesTallied(ev, state) {
+  const steps = [];
+
+  // Snapshot votes at build time so the animation doesn't depend on
+  // live state (safe either way since blameVotes isn't cleared until
+  // semesterBreak, but explicit is better).
+  const votesSnapshot = { ...(state.blameVotes || {}) };
+  const voters        = Object.keys(votesSnapshot);
+
+  // ── Step 1: set up the face-down blame card row ──────────
+  steps.push({
+    label:    'BLAME_REVEAL_SETUP',
+    duration: 320,
+    payload:  { voters, state },
+    callback({ voters, state }) {
+      // Remove any lingering reveal area from a previous round
+      document.getElementById('blame-reveal-area')?.remove();
+      if (voters.length === 0) return;
+
+      const area = document.createElement('div');
+      area.id        = 'blame-reveal-area';
+      area.className = 'blame-reveal-area';
+
+      for (const vid of voters) {
+        const vname = state.players[vid]?.name ?? '?';
+        const card  = document.createElement('div');
+        card.className  = 'blame-reveal-card';
+        card.id         = 'blame-rev-' + vid;
+        card.innerHTML  =
+          `<img src="./cards/blame-card-back.jpg" alt="Vote card" class="blame-card-img">` +
+          `<div class="blame-voter-name">${vname}</div>`;
+        area.appendChild(card);
+      }
+      document.body.appendChild(area);
+    },
+  });
+
+  // ── Steps 2…N: flip each voter's card one by one ────────
+  for (const vid of voters) {
+    const isAccused = votesSnapshot[vid] === ev.accusedId;
+    steps.push({
+      label:    `BLAME_FLIP_${vid}`,
+      duration: 240,   // fast, no pause on last card
+      overlap:  0,
+      payload:  { vid, isAccused },
+      callback({ vid, isAccused }) {
+        const card = document.getElementById('blame-rev-' + vid);
+        if (!card) return;
+        // Flip out
+        card.classList.add('anim-pile-flip-out');
+        // Halfway through — swap to face artwork
+        setTimeout(() => {
+          card.classList.remove('anim-pile-flip-out');
+          const imgSrc = isAccused
+            ? './cards/blame-accused.jpg'
+            : './cards/blame-leader.jpg';
+          const nameEl = card.querySelector('.blame-voter-name');
+          const vname  = nameEl?.textContent ?? '';
+          card.innerHTML =
+            `<img src="${imgSrc}" alt="${isAccused ? 'Blamed accused' : 'Blamed leader'}" class="blame-card-img">` +
+            `<div class="blame-voter-name">${vname}</div>`;
+          card.classList.add('anim-pile-flip-in');
+          card.addEventListener('animationend',
+            () => card.classList.remove('anim-pile-flip-in'),
+            { once: true });
+        }, 120);
+      },
+    });
+  }
+
+  // ── Final step: remove reveal area, show vote-result banner ─
+  steps.push({
+    label:    'VOTES_TALLIED',
+    duration: 1400,
+    payload:  { ev, state },
     callback({ ev, state }) {
+      setTimeout(() => document.getElementById('blame-reveal-area')?.remove(), 600);
+
       renderGameHeader(state);
       renderPlayersBar(state);
       renderControlBar(state, _humanId);
@@ -700,9 +772,11 @@ function _stepVotesTallied(ev, state) {
         msg = `Tied vote! Investigation — comparing Party Pile cards.`;
       }
       _showBanner(aV !== lV ? 'fail' : 'snitch', msg);
-      setTimeout(() => _removeBanner(), 1100);
+      setTimeout(() => _removeBanner(), 1200);
     },
-  };
+  });
+
+  return steps;
 }
 
 /* TIE_INVESTIGATION */
@@ -906,12 +980,22 @@ function _stepGameOver(ev, state) {
   return {
     label: 'GAME_OVER',
     duration: 1200,
-    payload: { state },
-    callback({ state }) {
+    payload: { ev, state },
+    callback({ ev, state }) {
       renderGameHeader(state);
       renderControlBar(state, _humanId);
       renderLog(state);
-      _showBanner('pass', 'All semesters complete — Game Over!');
+
+      const reason = ev.gameEndReason ?? state.gameEndReason;
+      let bannerText;
+      if (reason === 'all-expelled') {
+        bannerText = 'Everyone expelled — Game Over!';
+      } else if (reason === 'elimination-limit') {
+        bannerText = 'Eliminations end the game — Game Over!';
+      } else {
+        bannerText = 'All semesters complete — Game Over!';
+      }
+      _showBanner('pass', bannerText);
       setTimeout(() => _removeBanner(), 1100);
       _launchConfetti();
     },

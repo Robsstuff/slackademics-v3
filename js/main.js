@@ -3,7 +3,7 @@
    ===================================================== */
 'use strict';
 
-import { createState }               from './state.js';
+import { createState, totalFails }   from './state.js';
 import {
   playPair, revealPhase, letItRide, useLeadershipSkill,
   completeRealignSkill, accusePlayer, castVote, skipBlame,
@@ -151,6 +151,15 @@ function _advance() {
 
 function _afterQueueDrain() {
   _hideAIThinking();
+
+  // Show blame vote pop-up for human voter immediately after the queue settles.
+  // _advance() returns early when it's the human's turn anyway, so calling both
+  // is safe — the overlay appears while the game waits for the human to click.
+  if (_state?.phase === 'BLAME_VOTE' &&
+      _state.blameVotersRemaining?.includes(_humanId)) {
+    setTimeout(() => _openBlameVoteOverlay(), _delay(150));
+  }
+
   _advance();
 }
 
@@ -478,6 +487,62 @@ function _openBlameOverlay() {
   document.body.appendChild(overlay);
 }
 
+
+// ─────────────────────────────────────────────────────────
+//  BLAME VOTE OVERLAY — card-image voting UI
+// ─────────────────────────────────────────────────────────
+function _openBlameVoteOverlay() {
+  if (!_state || _state.phase !== 'BLAME_VOTE') return;
+  if (!_state.blameVotersRemaining?.includes(_humanId)) return;
+  if (document.getElementById('blame-vote-overlay')) return;  // already open
+
+  const accused = _state.players[_state.blameAccusedId];
+  const leader  = _state.players[_state.projectLeaderId];
+  if (!accused || !leader) return;
+
+  const accFails = totalFails(accused);
+  const ldrFails = totalFails(leader);
+
+  const overlay = document.createElement('div');
+  overlay.id        = 'blame-vote-overlay';
+  overlay.className = 'overlay-screen active';
+  overlay.innerHTML = `
+    <div class="overlay-sheet blame-vote-sheet">
+      <div class="overlay-title">Who was really to blame?</div>
+      <div class="overlay-body">
+        Vote by clicking a card.<br>
+        If the group disagrees with the Project Leader, the Leader takes the fail instead.
+      </div>
+      <div class="blame-vote-cards">
+        <div class="blame-vote-card" id="bvo-leader" role="button" tabindex="0">
+          <img src="./cards/blame-leader.jpg" alt="Blame the Project Leader" class="blame-vote-img">
+          <div class="blame-vote-badge leader-badge">Project Leader</div>
+          <div class="blame-vote-name">${_esc(leader.name)}</div>
+          <div class="blame-vote-stats">${ldrFails} fail${ldrFails !== 1 ? 's' : ''} &bull; ${leader.extraCredits} EC</div>
+        </div>
+        <div class="blame-vote-card" id="bvo-accused" role="button" tabindex="0">
+          <img src="./cards/blame-accused.jpg" alt="Blame the Accused" class="blame-vote-img">
+          <div class="blame-vote-badge accused-badge">The Accused</div>
+          <div class="blame-vote-name">${_esc(accused.name)}</div>
+          <div class="blame-vote-stats">${accFails} fail${accFails !== 1 ? 's' : ''} &bull; ${accused.extraCredits} EC</div>
+        </div>
+      </div>
+    </div>`;
+
+  const doVote = (getTargetFn) => {
+    overlay.remove();
+    _humanVote(getTargetFn);
+  };
+
+  overlay.querySelector('#bvo-leader').addEventListener('click',  () => doVote(s => s.projectLeaderId));
+  overlay.querySelector('#bvo-accused').addEventListener('click', () => doVote(s => s.blameAccusedId));
+
+  // Also keep keyboard support
+  overlay.querySelector('#bvo-leader').addEventListener('keydown',  e => { if (e.key === 'Enter' || e.key === ' ') doVote(s => s.projectLeaderId);  });
+  overlay.querySelector('#bvo-accused').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') doVote(s => s.blameAccusedId); });
+
+  document.body.appendChild(overlay);
+}
 
 // ─────────────────────────────────────────────────────────
 //  HUMAN VOTING
