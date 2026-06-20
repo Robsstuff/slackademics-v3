@@ -248,7 +248,7 @@ export function buildStepsFromEvents(events, state) {
           callback({ state }) {
             renderPlayersBar(state);
             renderLog(state);
-            _showBanner('fail', 'Project failed — all party piles discarded!');
+            _showBanner('fail', 'Project failed — each player loses their top party pile card!');
             setTimeout(() => _removeBanner(), 1100);
           },
         });

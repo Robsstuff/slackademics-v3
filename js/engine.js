@@ -443,12 +443,16 @@ function resolveOutcome(state, events) {
     if (state.gameMode === 'simple') {
       // Option: discard all party piles on fail
       if (state.failDiscardPartyPiles) {
-        const active = activePlayers(state);
+        const active    = activePlayers(state);
+        const discarded = {};
         for (const id of active) {
-          state.players[id].partyPile = [];
+          const pile = state.players[id].partyPile;
+          if (pile.length > 0) {
+            discarded[id] = pile.pop();
+          }
         }
-        events.push(evt('PARTY_PILES_DISCARDED', { playerIds: active }));
-        addLog(state, { type: 'fail', text: 'Project failed — all party piles discarded!' });
+        events.push(evt('PARTY_PILES_DISCARDED', { discarded }));
+        addLog(state, { type: 'fail', text: 'Project failed — each player loses their top party pile card!' });
       }
       _startGroupEval(state, events, false);
     } else {
