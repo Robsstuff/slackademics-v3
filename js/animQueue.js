@@ -240,6 +240,34 @@ export function buildStepsFromEvents(events, state) {
         break;
 
       // ── Group Evaluation (Simple mode) ────────────
+      case 'PARTY_PILES_DISCARDED':
+        steps.push({
+          label: 'PARTY_PILES_DISCARDED',
+          duration: 1200,
+          payload: { state },
+          callback({ state }) {
+            renderPlayersBar(state);
+            renderLog(state);
+            _showBanner('fail', 'Project failed — all party piles discarded!');
+            setTimeout(() => _removeBanner(), 1100);
+          },
+        });
+        break;
+
+      case 'GROUP_EVAL_SKIPPED':
+        steps.push({
+          label: 'GROUP_EVAL_SKIPPED',
+          duration: 900,
+          payload: { state },
+          callback({ state }) {
+            renderControlBar(state, _humanId);
+            renderLog(state);
+            _showBanner('pass', 'Extra credit awarded — Group Evaluation skipped!');
+            setTimeout(() => _removeBanner(), 800);
+          },
+        });
+        break;
+
       case 'GROUP_EVAL_START':
         steps.push(_stepGroupEvalStart(ev, state));
         break;

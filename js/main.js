@@ -61,7 +61,7 @@ export function init() {
 // ─────────────────────────────────────────────────────────
 //  GAME START
 // ─────────────────────────────────────────────────────────
-export function startGame(lobbyPlayers, gameMode = 'traditional') {
+export function startGame(lobbyPlayers, gameMode = 'traditional', options = {}) {
   const configs = lobbyPlayers.map((p, i) => ({
     id:      'p' + (i + 1),
     name:    p.name,
@@ -72,7 +72,7 @@ export function startGame(lobbyPlayers, gameMode = 'traditional') {
   _humanId = configs.find(c => c.isHuman)?.id ?? configs[0].id;
   if (window._slk_diff != null) _lobbyDifficulty = window._slk_diff;
   const coLeadFailMode = window._slk_colead_fail || 'exam_fail';
-  _state = createState(configs, _lobbyDifficulty, coLeadFailMode, gameMode);
+  _state = createState(configs, _lobbyDifficulty, coLeadFailMode, gameMode, options);
   _stagedProject = null;
   _stagedParty   = null;
 
@@ -909,44 +909,83 @@ function _openTieBreakOverlay() {
   document.body.appendChild(overlay);
 }
 
+function _cardImg(card) {
+  if (!card) return './cards/Card Back Regular.jpg';
+  if (card.type === 'copy') return './cards/effort/Copy.jpg';
+  const imgs = {
+    0:'0.jpg', 1:'1.jpg', 2:'2.jpg', 3:'3.jpg',
+    4:'4.jpg', 5:'5.jpg', 6:'6.jpg', 7:'7.jpg', 8:'8.jpg',
+  };
+  return `./cards/effort/${imgs[card.value] ?? '0.jpg'}`;
+}
+
 function _openAppealOverlay() {
   if (!_state || _state.phase !== 'GROUP_EVAL_APPEAL') return;
   if (document.getElementById('appeal-overlay')) return;
 
   const accusedId = _state.evalAccusedId;
   if (!accusedId) return;
-  const accused = _state.players[accusedId];
-  const myPV    = partyCardValue(accused.semesterProjectCard);
+  const accused  = _state.players[accusedId];
+  const myPV     = partyCardValue(accused.semesterProjectCard);
+  const myCard   = accused.semesterProjectCard;
+  const myCardName = myCard ? (myCard.type === 'copy' ? 'X2 Copy' : `${myCard.name ?? myCard.value}`) : '?';
+
+  // Find the player with the highest party value this round (to show context)
+  const active     = activePlayers(_state);
+  const allVals    = active.map(id => ({ id, pv: partyCardValue(_state.players[id].semesterProjectCard) }));
+  const highestPV  = Math.max(...allVals.map(x => x.pv));
+  const highPlayer = allVals.find(x => x.pv === highestPV && x.id !== accusedId);
 
   // Eligible appeal targets: active, not self, have round slacker cards
-  const active   = activePlayers(_state);
   const eligible = active.filter(id => id !== accusedId && (_state.evalRoundCounts[id] ?? 0) > 0);
 
   const overlay = document.createElement('div');
   overlay.id = 'appeal-overlay';
   overlay.className = 'overlay-screen active';
+
+  const highNote = highPlayer
+    ? `Highest party card this round: <strong>${_esc(_state.players[highPlayer.id].name)}</strong> (Party ${highestPV})`
+    : `Highest party card this round: Party ${highestPV}`;
+
   overlay.innerHTML = `
     <div class="overlay-sheet slacker-vote-sheet">
       <div class="overlay-title">Appeal</div>
+      <div class="appeal-accused-row">
+        <img src="${_cardImg(myCard)}" alt="${_esc(myCardName)}" class="appeal-card-img"/>
+        <div class="appeal-accused-info">
+          <div class="appeal-accused-name">${_esc(accused.name)}</div>
+          <div class="appeal-card-label">Played: <strong>${_esc(myCardName)}</strong></div>
+          <div class="appeal-card-pv">Your Party value: <strong>${myPV}</strong></div>
+          <div class="appeal-card-note">${highNote}</div>
+        </div>
+      </div>
       <div class="slacker-vote-intro">
-        You (${_esc(accused.name)}) did not play the highest party card (${myPV}).<br>
-        Name someone you think is the real Slacker — or skip the appeal.
+        Your party card wasn't the highest — name someone you think is the real Slacker,
+        or skip the appeal.
       </div>
       <div class="slacker-vote-grid" id="ap-grid"></div>
-      <button class="btn-t" id="ap-skip" style="margin-top:14px;">Skip Appeal</button>
+      <button class="btn-t" id="ap-skip" style="margin-top:14px;">Skip Appeal (accept verdict)</button>
     </div>`;
 
   const grid = overlay.querySelector('#ap-grid');
   for (const pid of eligible) {
-    const p   = _state.players[pid];
-    const pv  = partyCardValue(p.semesterProjectCard);
+    const p      = _state.players[pid];
+    const pv     = partyCardValue(p.semesterProjectCard);
+    const pCard  = p.semesterProjectCard;
+    const pCName = pCard ? (pCard.type === 'copy' ? 'X2 Copy' : `${pCard.name ?? pCard.value}`) : '?';
+    const wins   = pv > myPV;
+
     const btn = document.createElement('div');
-    btn.className = 'slacker-vote-card';
+    btn.className = `slacker-vote-card appeal-target-card${wins ? ' appeal-wins' : ' appeal-loses'}`;
     btn.setAttribute('role', 'button');
     btn.setAttribute('tabindex', '0');
     btn.innerHTML = `
-      <img src="./cards/slacker.jpg" alt="Slacker card" class="slacker-vote-img"/>
+      <img src="${_cardImg(pCard)}" alt="${_esc(pCName)}" class="appeal-card-img"/>
       <div class="slacker-vote-name">${_esc(p.name)}</div>
+      <div class="appeal-card-label">Played: <strong>${_esc(pCName)}</strong></div>
+      <div class="appeal-card-pv">Party value: <strong>${pv}</strong>
+        ${wins ? '<span class="appeal-win-badge">WINS ✓</span>' : '<span class="appeal-lose-badge">LOSES ✗</span>'}
+      </div>
       <div class="slacker-vote-stats">${_state.evalRoundCounts[pid]} slacker card${_state.evalRoundCounts[pid] !== 1 ? 's' : ''}</div>`;
 
     const appeal = () => {

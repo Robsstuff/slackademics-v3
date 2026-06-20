@@ -245,6 +245,14 @@ export function awardLeaderExtraCredit(state, { leaderId, recipientId }) {
     type: 'system',
     text: `${state.players[leaderId].name} awards Extra Credit to ${state.players[recipientId].name}.`,
   });
+
+  // Simple mode: extra credit was awarded — skip group eval, go to break
+  if (state.gameMode === 'simple') {
+    addLog(state, { type: 'system', text: 'Extra credit awarded — Group Evaluation skipped this round.' });
+    events.push(evt('GROUP_EVAL_SKIPPED', {}));
+    state.phase = 'BREAK';
+  }
+
   return events;
 }
 
@@ -377,6 +385,7 @@ function resolveOutcome(state, events) {
 
     // Extra Credits — only when Let It Ride is used (no skill)
     if (!state.chosenSkill) {
+      state.extraCreditAwardedThisRound = true;
       const leaderId = state.projectLeaderId;
       events.push(...awardExtraCredit(state, leaderId));
       const active = activePlayers(state);
@@ -384,11 +393,20 @@ function resolveOutcome(state, events) {
         state.pendingSkillStep = 'extra-credit-pick';
         state.activePlayerId   = leaderId;
         events.push(evt('EXTRA_CREDIT_PICK_NEEDED', { leaderId, options: active.filter(id => id !== leaderId) }));
+        // awardLeaderExtraCredit will handle phase transition after pick
+        return;
       }
     }
 
     if (state.gameMode === 'simple') {
-      _startGroupEval(state, events, true);
+      if (state.extraCreditAwardedThisRound) {
+        // No slacker vote when extra credit is earned
+        addLog(state, { type: 'system', text: 'Extra credit awarded — Group Evaluation skipped this round.' });
+        events.push(evt('GROUP_EVAL_SKIPPED', {}));
+        state.phase = 'BREAK';
+      } else {
+        _startGroupEval(state, events, true);
+      }
     } else {
       state.phase = 'BREAK';
     }
@@ -423,6 +441,15 @@ function resolveOutcome(state, events) {
     }
 
     if (state.gameMode === 'simple') {
+      // Option: discard all party piles on fail
+      if (state.failDiscardPartyPiles) {
+        const active = activePlayers(state);
+        for (const id of active) {
+          state.players[id].partyPile = [];
+        }
+        events.push(evt('PARTY_PILES_DISCARDED', { playerIds: active }));
+        addLog(state, { type: 'fail', text: 'Project failed — all party piles discarded!' });
+      }
       _startGroupEval(state, events, false);
     } else {
       // Move to BLAME
@@ -1069,11 +1096,12 @@ export function semesterBreak(state) {
   state.skillEffects         = {};
   state.pendingSkillStep     = null;
   // Reset Group Eval state for new round
-  state.roundSlackerVotes   = {};
-  state.evalRoundCounts     = {};
-  state.evalAccusedId       = null;
-  state.evalVotersRemaining = [];
-  state.evalTiedPlayers     = [];
+  state.roundSlackerVotes          = {};
+  state.evalRoundCounts            = {};
+  state.evalAccusedId              = null;
+  state.evalVotersRemaining        = [];
+  state.evalTiedPlayers            = [];
+  state.extraCreditAwardedThisRound = false;
 
   // Apply carry-over target penalty (Curve the Grade)
   state.targetBonus      = state.nextTargetPenalty || 0;

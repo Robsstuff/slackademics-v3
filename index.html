@@ -170,6 +170,17 @@
       </div>
     </div>
 
+    <!-- Simple mode options (only shown in New & Simple) -->
+    <div class="lobby-section" id="simple-options-section" style="display:none">
+      <div class="sec-lbl">New &amp; Simple Options</div>
+      <div class="diff-btns">
+        <button class="diff-btn" id="btn-fail-discard" onclick="toggleFailDiscard(this)">
+          <span class="diff-name">Fail = Discard Party Pile</span>
+          <span class="diff-desc">When the project fails, all players lose their entire party pile</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Speed / animation toggle -->
     <div class="lobby-section">
       <div class="sec-lbl">Game Speed</div>
@@ -640,17 +651,27 @@
 'use strict';
 
 /* ── Game mode selection ─────────────────────────────── */
-var _lobbyMode = 'traditional';
+var _lobbyMode        = 'traditional';
+var _failDiscardParty = false;
 
 function setLobbyMode(mode) {
   _lobbyMode = mode;
-  // Update lobby header badge to show chosen mode
+  var isSimple = mode === 'simple';
   var badge = document.getElementById('lobby-mode-badge');
-  if (badge) badge.textContent = mode === 'simple' ? 'New & Simple' : 'Traditional';
-  // Hide Co-Lead rule for Simple (no semester breaks / co-lead card draws)
+  if (badge) badge.textContent = isSimple ? 'New & Simple' : 'Traditional';
   var coLeadSection = document.getElementById('colead-section');
-  if (coLeadSection) coLeadSection.style.display = mode === 'simple' ? 'none' : '';
+  if (coLeadSection) coLeadSection.style.display = isSimple ? 'none' : '';
+  var simpleSection = document.getElementById('simple-options-section');
+  if (simpleSection) simpleSection.style.display = isSimple ? '' : 'none';
+  _failDiscardParty = false;
+  var btn = document.getElementById('btn-fail-discard');
+  if (btn) btn.classList.remove('active');
   goScreen('lobby');
+}
+
+function toggleFailDiscard(btn) {
+  _failDiscardParty = !_failDiscardParty;
+  btn.classList.toggle('active', _failDiscardParty);
 }
 
 /* ── Screen navigation ───────────────────────────────── */
@@ -835,7 +856,7 @@ document.getElementById('start-game-btn').addEventListener('click', function(e) 
     };
   });
 
-  window.__slk.startGame(lobbyPlayers, _lobbyMode);
+  window.__slk.startGame(lobbyPlayers, _lobbyMode, { failDiscardPartyPiles: _failDiscardParty });
 }, true); // capture = true so this fires before the onclick goScreen
 
 </script>

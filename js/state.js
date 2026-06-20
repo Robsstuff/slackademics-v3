@@ -220,7 +220,7 @@ export function getSimpleTarget(round, activeCount, difficulty = 1) {
 }
 
 // ── createState ───────────────────────────────────────────
-export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exam_fail', gameMode = 'traditional') {
+export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exam_fail', gameMode = 'traditional', options = {}) {
   const isSimple = gameMode === 'simple';
   const players = {};
   for (const cfg of playerConfigs) {
@@ -302,6 +302,10 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
     evalAccusedId:      null,
     evalIsOnFail:       false,
     evalTiedPlayers:    [],
+
+    // Simple mode options
+    failDiscardPartyPiles:      isSimple && !!(options.failDiscardPartyPiles),
+    extraCreditAwardedThisRound: false,
 
     log: [],
   };
