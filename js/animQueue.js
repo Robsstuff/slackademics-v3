@@ -239,6 +239,36 @@ export function buildStepsFromEvents(events, state) {
         steps.push(_stepSemesterStart(ev, state));
         break;
 
+      // ── Group Evaluation (Simple mode) ────────────
+      case 'GROUP_EVAL_START':
+        steps.push(_stepGroupEvalStart(ev, state));
+        break;
+
+      case 'SLACKER_VOTE_CAST':
+        steps.push(_stepReRender(ev, state));
+        break;
+
+      case 'EVAL_VOTES_REVEALED':
+        steps.push(_stepEvalVotesRevealed(ev, state));
+        break;
+
+      case 'EVAL_TIE':
+        steps.push(_stepEvalTie(ev, state));
+        break;
+
+      case 'EVAL_TIE_BROKEN':
+      case 'EVAL_ACCUSED':
+      case 'EVAL_CONFIRMED_SLACKER':
+      case 'EVAL_APPEAL_OFFERED':
+      case 'EVAL_APPEAL_SUCCESS':
+      case 'EVAL_APPEAL_FAIL':
+        steps.push(_stepEvalMessage(ev, state));
+        break;
+
+      case 'EVAL_ROUND_DONE':
+        steps.push(_stepEvalRoundDone(ev, state));
+        break;
+
       // ── End game ──────────────────────────────────
       case 'GAME_OVER':
         steps.push(_stepGameOver(ev, state));
@@ -371,6 +401,11 @@ function _stepRevealStart(ev, state) {
       setSkillBonus(0);
       const tag = document.getElementById('skill-bonus-tag');
       if (tag) tag.classList.remove('visible');
+      // Reset effort bar to neutral amber (clear any pass/fail colour from prior semester)
+      const track = document.querySelector('.effort-bar-track');
+      if (track) track.classList.remove('outcome-pass', 'outcome-fail');
+      const pip = document.getElementById('effort-pip');
+      if (pip) pip.classList.remove('outcome-pass', 'outcome-fail');
     },
   };
 }
@@ -486,6 +521,11 @@ function _stepProjectPassed(ev, state) {
       _feltFlash('pass');
       _showBanner('pass', `Project PASSED ✓ &nbsp; ${total} / ${target}`);
       setTimeout(() => _removeBanner(), 1800);
+      // Turn effort bar and pip green
+      const track = document.querySelector('.effort-bar-track');
+      if (track) { track.classList.remove('outcome-fail'); track.classList.add('outcome-pass'); }
+      const pip = document.getElementById('effort-pip');
+      if (pip) { pip.classList.remove('outcome-fail'); pip.classList.add('outcome-pass'); }
     },
   };
 }
@@ -503,6 +543,11 @@ function _stepProjectFailed(ev, state) {
       );
       if (banner) banner.classList.add('anim-shake');
       setTimeout(() => _removeBanner(), 1700);
+      // Turn effort bar and pip red
+      const track = document.querySelector('.effort-bar-track');
+      if (track) { track.classList.remove('outcome-pass'); track.classList.add('outcome-fail'); }
+      const pip = document.getElementById('effort-pip');
+      if (pip) { pip.classList.remove('outcome-pass'); pip.classList.add('outcome-fail'); }
     },
   };
 }
@@ -976,6 +1021,104 @@ function _stepSemesterStart(ev, state) {
         `Semester ${state.semester} — target: ${state.projectTarget}`
       );
       setTimeout(() => _removeBanner(), 900);
+    },
+  };
+}
+
+/* GROUP_EVAL_START */
+function _stepGroupEvalStart(ev, state) {
+  return {
+    label: 'GROUP_EVAL_START',
+    duration: 1000,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderGameHeader(state);
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      const outcome = ev.isPassed ? 'The project PASSED.' : 'The project FAILED.';
+      _showBanner(ev.isPassed ? 'pass' : 'fail', `${outcome} Group Evaluation begins!`);
+      setTimeout(() => _removeBanner(), 900);
+    },
+  };
+}
+
+/* EVAL_VOTES_REVEALED */
+function _stepEvalVotesRevealed(ev, state) {
+  return {
+    label: 'EVAL_VOTES_REVEALED',
+    duration: 1200,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      const counts = ev.counts ?? {};
+      const names  = Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([id, n]) => `${state.players[id]?.name ?? id}: ${n}`)
+        .join(', ');
+      _showBanner('blame', `Votes revealed! ${names || 'No votes'}`);
+      setTimeout(() => _removeBanner(), 1100);
+    },
+  };
+}
+
+/* EVAL_TIE */
+function _stepEvalTie(ev, state) {
+  return {
+    label: 'EVAL_TIE',
+    duration: 900,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      _showBanner('blame', `Tied vote! ${state.players[ev.leaderId]?.name ?? 'Leader'} must break the tie.`);
+      setTimeout(() => _removeBanner(), 800);
+    },
+  };
+}
+
+/* Generic Group Eval message events */
+function _stepEvalMessage(ev, state) {
+  const bannerMap = {
+    EVAL_TIE_BROKEN:      'blame',
+    EVAL_ACCUSED:         'blame',
+    EVAL_CONFIRMED_SLACKER:'fail',
+    EVAL_APPEAL_OFFERED:  'blame',
+    EVAL_APPEAL_SUCCESS:  'pass',
+    EVAL_APPEAL_FAIL:     'fail',
+  };
+  return {
+    label: ev.type,
+    duration: 1100,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      const type   = bannerMap[ev.type] ?? 'blame';
+      const logEntry = state.log[state.log.length - 1];
+      if (logEntry) {
+        _showBanner(type, logEntry.text);
+        setTimeout(() => _removeBanner(), 1000);
+      }
+    },
+  };
+}
+
+/* EVAL_ROUND_DONE */
+function _stepEvalRoundDone(ev, state) {
+  return {
+    label: 'EVAL_ROUND_DONE',
+    duration: 800,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      _showBanner('pass', 'Group Evaluation complete.');
+      setTimeout(() => _removeBanner(), 700);
     },
   };
 }

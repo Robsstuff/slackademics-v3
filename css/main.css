@@ -229,13 +229,17 @@
 }
 .effort-bar-fill {
   height: 100%;
-  background: var(--green);
+  background: var(--amber);
   width: 0%;
   flex-shrink: 0;
-  transition: width .45s cubic-bezier(.25,.46,.45,.94), background .3s;
+  transition: width .45s cubic-bezier(.25,.46,.45,.94), background .4s;
 }
-.effort-bar-fill.over-target { background: var(--accent); }
-/* Blue skill bonus segment — sits right after green fill */
+/* Pass / fail outcome states — override amber with green or red */
+.effort-bar-track.outcome-pass .effort-bar-fill,
+.effort-bar-track.outcome-pass .effort-bar-skill { background: var(--green); }
+.effort-bar-track.outcome-fail .effort-bar-fill,
+.effort-bar-track.outcome-fail .effort-bar-skill { background: var(--accent); }
+/* Blue skill bonus segment — sits right after amber fill */
 .effort-bar-skill {
   height: 100%;
   background: #3498db;
@@ -267,14 +271,19 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .effort-pip {
-  background: var(--green); border: 2px solid var(--border);
+  background: var(--amber); border: 2px solid var(--border);
   border-radius: var(--r-sm); padding: 4px 11px;
   text-align: center; box-shadow: var(--shad-s); flex-shrink: 0;
+  transition: background .4s;
 }
 .effort-pip-lbl {
   font-size: 9px; text-transform: uppercase;
-  letter-spacing: .09em; color: var(--green-dk); font-weight: 600;
+  letter-spacing: .09em; color: var(--amber-dk); font-weight: 600;
 }
+.effort-pip.outcome-pass { background: var(--green); }
+.effort-pip.outcome-pass .effort-pip-lbl { color: var(--green-dk); }
+.effort-pip.outcome-fail { background: var(--accent); }
+.effort-pip.outcome-fail .effort-pip-lbl { color: var(--accent-dk); }
 .effort-pip-val {
   font-family: var(--font-d); font-weight: 700;
   font-size: 22px; line-height: 1; color: var(--fg);
@@ -1115,4 +1124,122 @@
 }
 .name-btn.used, .name-btn:disabled {
   opacity: .35; cursor: not-allowed; box-shadow: none;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MODE SELECT SCREEN
+   ═══════════════════════════════════════════════════════ */
+#s-mode-select {
+  display: none; flex-direction: column;
+}
+#s-mode-select.active { display: flex; }
+.mode-select-body {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 24px 16px; gap: 20px;
+}
+.mode-select-prompt {
+  font-family: var(--font-d); font-size: 18px;
+  font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; text-align: center;
+}
+.mode-cards {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  justify-content: center; width: 100%; max-width: 560px;
+}
+.mode-card {
+  flex: 1; min-width: 210px; max-width: 260px;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 22px 18px 20px;
+  border: 2.5px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: 3px 3px 0 var(--border);
+  cursor: pointer;
+  transition: transform .14s, box-shadow .14s, border-color .14s;
+  text-align: center;
+}
+.mode-card:hover, .mode-card:focus {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: 3px 6px 0 var(--accent);
+  outline: none;
+}
+.mode-card-simple:hover, .mode-card-simple:focus {
+  border-color: var(--teal, #0d9488);
+  box-shadow: 3px 6px 0 var(--teal, #0d9488);
+}
+.mode-card-icon {
+  font-size: 40px; line-height: 1; margin-bottom: 10px;
+}
+.mode-card-title {
+  font-family: var(--font-d); font-size: 20px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .03em; margin-bottom: 12px;
+}
+.mode-card-desc {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 5px;
+  text-align: left; font-size: 13px; color: var(--muted);
+  width: 100%;
+}
+.mode-card-desc li::before {
+  content: '– '; color: var(--accent); font-weight: 700;
+}
+.mode-card-simple .mode-card-desc li::before {
+  color: var(--teal, #0d9488);
+}
+
+/* ── Lobby mode badge ────────────────────────────────── */
+.hdr-badge-mode {
+  background: var(--teal-light, #ccfbf1);
+  color: #0f766e; font-size: 10px;
+  margin-left: auto;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SLACKER VOTE OVERLAY (Simple mode Group Evaluation)
+   ═══════════════════════════════════════════════════════ */
+.slacker-vote-sheet { max-width: 500px; }
+.slacker-vote-intro {
+  font-size: 14px; color: var(--fg); font-weight: 600;
+  line-height: 1.45; text-align: center;
+}
+.slacker-vote-grid {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  justify-content: center; margin-top: 8px;
+}
+.slacker-vote-card {
+  display: flex; flex-direction: column; align-items: center;
+  cursor: pointer; border-radius: 12px; padding: 8px 10px;
+  border: 2.5px solid transparent;
+  background: var(--surface);
+  transition: transform .14s, box-shadow .14s, border-color .14s;
+  min-width: 90px;
+}
+.slacker-vote-card:hover, .slacker-vote-card:focus {
+  transform: scale(1.06); outline: none;
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  border-color: var(--accent);
+}
+.slacker-vote-img {
+  width: 80px; border-radius: 7px; display: block;
+}
+.slacker-vote-name {
+  font-size: 13px; font-weight: 700; margin-top: 6px; text-align: center;
+}
+.slacker-vote-stats {
+  font-size: 10px; color: var(--muted); margin-top: 2px; text-align: center;
+}
+
+/* ── Slacker token badge on player slot ─────────────── */
+.slot-slacker-tokens {
+  display: flex; align-items: center; gap: 3px;
+  margin-top: 3px;
+}
+.slacker-token-icon {
+  width: 18px; height: 24px; object-fit: cover;
+  border-radius: 3px; display: block;
+}
+.slacker-token-count {
+  font-size: 11px; font-weight: 700; color: var(--accent);
 }

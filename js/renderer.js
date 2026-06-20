@@ -27,27 +27,33 @@ export function setCardClickCallback(fn) { _cardClickCb = fn; }
 
 // ── Phase display ─────────────────────────────────────────
 const PHASE_LABEL = {
-  PLAYING:    'Playing Cards',
-  REVEAL:     'Reveal',
-  DEADLINE:   'Day of Deadline',
-  BLAME:      'Blame Phase',
-  BLAME_VOTE: 'Voting',
-  SNITCH:     'Snitch Phase',
-  BREAK:      'Semester Break',
-  BREAK_DRAW: 'Draw New Pair',
-  GAMEOVER:   'Game Over',
+  PLAYING:               'Playing Cards',
+  REVEAL:                'Reveal',
+  DEADLINE:              'Day of Deadline',
+  BLAME:                 'Blame Phase',
+  BLAME_VOTE:            'Voting',
+  SNITCH:                'Snitch Phase',
+  BREAK:                 'Semester Break',
+  BREAK_DRAW:            'Draw New Pair',
+  GROUP_EVAL:            'Group Evaluation',
+  GROUP_EVAL_LEADER_TIE: 'Tie Break',
+  GROUP_EVAL_APPEAL:     'Appeal',
+  GAMEOVER:              'Game Over',
 };
 
 const PHASE_SUB = {
-  PLAYING:    'Playing',
-  REVEAL:     'Revealing',
-  DEADLINE:   'Deadline',
-  BLAME:      'Blaming',
-  BLAME_VOTE: 'Voting',
-  SNITCH:     'Snitching',
-  BREAK:      'Break',
-  BREAK_DRAW: 'Drawing',
-  GAMEOVER:   'Game Over',
+  PLAYING:               'Playing',
+  REVEAL:                'Revealing',
+  DEADLINE:              'Deadline',
+  BLAME:                 'Blaming',
+  BLAME_VOTE:            'Voting',
+  SNITCH:                'Snitching',
+  BREAK:                 'Break',
+  BREAK_DRAW:            'Drawing',
+  GROUP_EVAL:            'Evaluating',
+  GROUP_EVAL_LEADER_TIE: 'Tie Break',
+  GROUP_EVAL_APPEAL:     'Appeal',
+  GAMEOVER:              'Game Over',
 };
 
 const PILE_ROTS = [-4, 3, -2, 5, -1, 2, -3, 4, -5, 1, -6, 3, 2, -4];
@@ -270,13 +276,18 @@ export function renderPlayersBar(state) {
       : isSnitcher ? 'Snitching'
       : 'Player';
 
-    const failTotal = totalFails(p);
+    const failTotal  = totalFails(p);
+    const failLimit  = state.failLimit ?? 5;
+    const slackerCnt = (state.slackerTokens?.[id] ?? 0);
 
     let inner =
       `<div class="slot-name">${esc(p.name)}</div>` +
       `<div class="slot-role">${roleText}</div>` +
       `<div class="slot-party"><img src="${CARD_BACK_SRC}" alt="cards" class="party-pile-back"/><span class="party-pile-count">${p.partyPile.length}</span></div>` +
-      `<div class="fail-pips">${failPipsHTML(failTotal)}</div>`;
+      `<div class="fail-pips">${failPipsHTML(failTotal, failLimit)}</div>` +
+      (slackerCnt > 0
+        ? `<div class="slot-slacker-tokens"><img src="./cards/slacker.jpg" alt="Slacker" class="slacker-token-icon"/><span class="slacker-token-count">${slackerCnt}</span></div>`
+        : '');
 
     if (p.extraCredits > 0) {
       const ecCount = Math.min(p.extraCredits, 5);
@@ -548,16 +559,9 @@ export function renderControlBar(state, humanId) {
     }
 
     case 'BLAME_VOTE': {
-      if (isVoter) {
-        const accused = state.blameAccusedId ? state.players[state.blameAccusedId] : null;
-        const leader  = state.projectLeaderId ? state.players[state.projectLeaderId] : null;
-        show('btn-vote-accused', false,
-          `Blame ${accused ? esc(accused.name) : 'Accused'}`);
-        show('btn-vote-leader',  false,
-          `Blame ${leader ? esc(leader.name) : 'Leader'}`);
-      } else {
-        show('btn-continue', true, 'Voting in progress…');
-      }
+      // Voting is handled entirely by the card-artwork overlay (_openBlameVoteOverlay).
+      // Show a disabled status label for everyone while the vote is in progress.
+      show('btn-continue', true, 'Voting in progress…');
       break;
     }
 
@@ -587,6 +591,37 @@ export function renderControlBar(state, humanId) {
         const drawer = state.breakDrawCurrent ? state.players[state.breakDrawCurrent] : null;
         show('btn-continue', true,
           drawer ? `Waiting for ${esc(drawer.name)}…` : 'Waiting…');
+      }
+      break;
+    }
+
+    case 'GROUP_EVAL': {
+      const waiting = state.evalVotersRemaining ?? [];
+      if (waiting.includes(humanId)) {
+        show('btn-continue', true, 'Select who slacked off…');
+      } else if (waiting.length > 0) {
+        show('btn-continue', true, 'Waiting for other votes…');
+      } else {
+        show('btn-continue', true, 'Counting votes…');
+      }
+      break;
+    }
+
+    case 'GROUP_EVAL_LEADER_TIE': {
+      if (isLeader) {
+        show('btn-continue', true, 'Choose who to accuse (tie break)…');
+      } else {
+        show('btn-continue', true, `Waiting for ${esc(state.players[state.projectLeaderId]?.name ?? 'leader')}…`);
+      }
+      break;
+    }
+
+    case 'GROUP_EVAL_APPEAL': {
+      const accusedId = state.evalAccusedId;
+      if (accusedId === humanId) {
+        show('btn-continue', true, 'Choose your appeal target…');
+      } else {
+        show('btn-continue', true, `Waiting for ${esc(state.players[accusedId]?.name ?? 'accused')}…`);
       }
       break;
     }

@@ -26,9 +26,9 @@
 'use strict';
 
 import {
-  addLog, getTarget, totalFails,
+  addLog, getTarget, getSimpleTarget, totalFails,
   FAIL_LIMIT, TOTAL_SEMESTERS, BREAK_SEMESTERS,
-  SEMESTER_NAMES, POOL_PAIRS, makeCard,
+  SEMESTER_NAMES, SIMPLE_SEMESTER_NAMES, POOL_PAIRS, makeCard,
 } from './state.js';
 import { shuffle } from './utils.js';
 
@@ -157,7 +157,8 @@ function calcSkillBonus(state, skill, wasFaceDown) {
 }
 
 // ── Apply individual fail ─────────────────────────────────
-function applyIndividualFail(state, playerId) {
+export function applyIndividualFail(state, playerId) {
+  const limit  = state.failLimit ?? FAIL_LIMIT;
   const events = [];
   const p = state.players[playerId];
   p.individualFails += 1;
@@ -165,7 +166,7 @@ function applyIndividualFail(state, playerId) {
   events.push(evt('INDIVIDUAL_FAIL', { playerId, failCount: total }));
   addLog(state, {
     type: 'fail',
-    text: `${p.name} receives an Individual Fail (${total}/${FAIL_LIMIT}).`,
+    text: `${p.name} receives an Individual Fail (${total}/${limit}).`,
     playerId,
   });
   checkExpulsion(state, playerId, events);
@@ -173,7 +174,8 @@ function applyIndividualFail(state, playerId) {
 }
 
 // ── Apply group fail to all active players ────────────────
-function applyGroupFail(state) {
+export function applyGroupFail(state) {
+  const limit  = state.failLimit ?? FAIL_LIMIT;
   const events = [];
   for (const id of activePlayers(state)) {
     const p = state.players[id];
@@ -182,7 +184,7 @@ function applyGroupFail(state) {
     events.push(evt('GROUP_FAIL', { playerId: id, failCount: total }));
     addLog(state, {
       type: 'fail',
-      text: `${p.name} receives a Group Fail (${total}/${FAIL_LIMIT}).`,
+      text: `${p.name} receives a Group Fail (${total}/${limit}).`,
       playerId: id,
     });
     checkExpulsion(state, id, events);
@@ -194,14 +196,15 @@ function applyGroupFail(state) {
 // Expulsion is DEFERRED to semester break so the player can finish
 // the current round (avoid freezing blame / snitch chains mid-round).
 function checkExpulsion(state, playerId, events) {
+  const limit = state.failLimit ?? FAIL_LIMIT;
   const p = state.players[playerId];
-  if (totalFails(p) >= FAIL_LIMIT && !p.isExpelled && !p.pendingExpulsion) {
+  if (totalFails(p) >= limit && !p.isExpelled && !p.pendingExpulsion) {
     p.pendingExpulsion = true;
     // Log immediately so the game log is accurate, but don't set isExpelled
     // yet — that happens at the start of semesterBreak.
     addLog(state, {
       type: 'expel',
-      text: `${p.name} has reached ${FAIL_LIMIT} fails — EXPELLED at end of round.`,
+      text: `${p.name} has reached ${limit} fails — EXPELLED at end of round.`,
       playerId,
     });
   }
@@ -291,6 +294,28 @@ function getVoters(state) {
   );
 }
 
+// ── Start Group Evaluation (Simple mode) ─────────────────
+function _startGroupEval(state, events, isPassed) {
+  const active = activePlayers(state);
+  state.evalIsOnFail       = !isPassed;
+  state.roundSlackerVotes  = {};
+  state.evalRoundCounts    = {};
+  state.evalAccusedId      = null;
+  state.evalTiedPlayers    = [];
+  state.evalVotersRemaining = [...active];
+  state.phase              = 'GROUP_EVAL';
+  state.activePlayerId     = active[0] ?? null;
+  events.push(evt('GROUP_EVAL_START', {
+    isPassed,
+    voters: active,
+    projectLeaderId: state.projectLeaderId,
+  }));
+  addLog(state, {
+    type: 'system',
+    text: `Group Evaluation — each player places a Slacker card on who they think slacked off.`,
+  });
+}
+
 // ── Resolve project pass/fail after final card is flipped ─
 function resolveOutcome(state, events) {
   const effects   = { ...(state.skillEffects || {}) };
@@ -362,7 +387,11 @@ function resolveOutcome(state, events) {
       }
     }
 
-    state.phase = 'BREAK';
+    if (state.gameMode === 'simple') {
+      _startGroupEval(state, events, true);
+    } else {
+      state.phase = 'BREAK';
+    }
   } else {
     const shortfall = effectiveTarget - total;
     events.push(evt('PROJECT_FAILED', { total, target: effectiveTarget, shortfall }));
@@ -393,9 +422,13 @@ function resolveOutcome(state, events) {
       }
     }
 
-    // Move to BLAME
-    state.phase          = 'BLAME';
-    state.activePlayerId = state.projectLeaderId;
+    if (state.gameMode === 'simple') {
+      _startGroupEval(state, events, false);
+    } else {
+      // Move to BLAME
+      state.phase          = 'BLAME';
+      state.activePlayerId = state.projectLeaderId;
+    }
   }
 }
 
@@ -984,7 +1017,7 @@ export function semesterBreak(state) {
       events.push(evt('PLAYER_EXPELLED', { playerId: id }));
       addLog(state, {
         type: 'expel',
-        text: `${p.name} has been EXPELLED (${FAIL_LIMIT} fails).`,
+        text: `${p.name} has been EXPELLED (${state.failLimit ?? FAIL_LIMIT} fails).`,
         playerId: id,
       });
     }
@@ -1010,17 +1043,21 @@ export function semesterBreak(state) {
   }
 
   if (state.semester >= state.totalSemesters) {
-    state.gameEndReason = 'semesters-complete';
+    const reason = 'semesters-complete';
+    state.gameEndReason = reason;
     _computeFinalScores(state);
     state.phase = 'GAMEOVER';
-    events.push(evt('GAME_OVER', { players: state.players, gameEndReason: 'semesters-complete' }));
-    addLog(state, { type: 'system', text: 'All 8 semesters complete — game over!' });
+    events.push(evt('GAME_OVER', { players: state.players, gameEndReason: reason }));
+    const label = state.gameMode === 'simple' ? 'All 6 rounds complete' : 'All 8 semesters complete';
+    addLog(state, { type: 'system', text: `${label} — game over!` });
     return events;
   }
 
   const prevSem = state.semester;
   state.semester     += 1;
-  state.semesterName  = SEMESTER_NAMES[state.semester - 1];
+  state.semesterName  = state.gameMode === 'simple'
+    ? (SIMPLE_SEMESTER_NAMES[state.semester - 1] ?? `Round ${state.semester}`)
+    : (SEMESTER_NAMES[state.semester - 1] ?? `Semester ${state.semester}`);
   state.projectPile   = [];
   state.blameAccusedId       = null;
   state.blameVotes           = {};
@@ -1031,6 +1068,12 @@ export function semesterBreak(state) {
   state.chosenSkill          = null;
   state.skillEffects         = {};
   state.pendingSkillStep     = null;
+  // Reset Group Eval state for new round
+  state.roundSlackerVotes   = {};
+  state.evalRoundCounts     = {};
+  state.evalAccusedId       = null;
+  state.evalVotersRemaining = [];
+  state.evalTiedPlayers     = [];
 
   // Apply carry-over target penalty (Curve the Grade)
   state.targetBonus      = state.nextTargetPenalty || 0;
@@ -1043,7 +1086,9 @@ export function semesterBreak(state) {
   state.activePlayerId  = state.projectLeaderId;
 
   // Update target
-  state.projectTarget = getTarget(state.semester, active.length, state.difficulty || 1);
+  state.projectTarget = state.gameMode === 'simple'
+    ? getSimpleTarget(state.semester, active.length, state.difficulty || 1)
+    : getTarget(state.semester, active.length, state.difficulty || 1);
 
   // Reset per-semester player state
   for (const id of state.playerOrder) {
@@ -1053,7 +1098,7 @@ export function semesterBreak(state) {
     p.semesterPartyCard   = null;
   }
 
-  const isBreak = BREAK_SEMESTERS.has(prevSem);
+  const isBreak = state.gameMode !== 'simple' && BREAK_SEMESTERS.has(prevSem);
 
   if (isBreak) {
     // Refresh face-up leadership skill
@@ -1327,6 +1372,9 @@ function _computeFinalScores(state) {
     const partyScore = computePileTotal(p.partyPile, effects);
     const ecBonus    = p.extraCredits * 3;
     const cleanBonus = p.individualFails === 0 ? p.extraCredits * 2 : 0;
-    p.academicPoints = Math.max(0, partyScore) + ecBonus + cleanBonus;
+    const slackerPenalty = state.gameMode === 'simple'
+      ? (state.slackerTokens?.[id] ?? 0)
+      : 0;
+    p.academicPoints = Math.max(0, partyScore) + ecBonus + cleanBonus - slackerPenalty;
   }
 }

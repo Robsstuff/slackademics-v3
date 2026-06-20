@@ -26,6 +26,7 @@ import { pick }                                         from './utils.js';
 import { activePlayers, getAvailablePairKeys, isValidPair, computePileTotal }
                                                         from './engine.js';
 import { totalFails }                                   from './state.js';
+import { partyCardValue }                               from './simple_engine.js';
 
 // ── Public entry point ────────────────────────────────────
 export function getAIAction(state, playerId) {
@@ -60,8 +61,83 @@ export function getAIAction(state, playerId) {
       if (state.breakDrawCurrent !== playerId) return null;
       return _actionDrawPair(state, playerId, player);
     case 'GAMEOVER':   return { type: 'VIEW_SCORES' };
+    // Simple mode phases
+    case 'GROUP_EVAL':
+      if (!state.evalVotersRemaining?.includes(playerId)) return null;
+      return _actionSlackerVote(state, playerId, player);
+    case 'GROUP_EVAL_LEADER_TIE':
+      if (state.projectLeaderId !== playerId) return null;
+      return _actionLeaderTieBreak(state, playerId, player);
+    case 'GROUP_EVAL_APPEAL':
+      if (state.evalAccusedId !== playerId) return null;
+      return _actionAppeal(state, playerId, player);
     default:           return null;
   }
+}
+
+// ─────────────────────────────────────────────────────────
+//  SIMPLE MODE — Group Evaluation AI
+// ─────────────────────────────────────────────────────────
+
+function _actionSlackerVote(state, playerId, player) {
+  const active = activePlayers(state).filter(id => id !== playerId);
+  if (active.length === 0) return null;
+
+  const roll = Math.random();
+
+  // 35% random
+  if (roll < 0.35) {
+    return { type: 'SLACKER_VOTE', targetId: active[Math.floor(Math.random() * active.length)] };
+  }
+
+  // 35% target player with highest suspicion
+  _updateSuspicion(state, playerId, player);
+  const scores = active.map(id => ({
+    id,
+    score: (player.suspicionScores[id] ?? 0) + Math.random() * 2,
+  }));
+  scores.sort((a, b) => b.score - a.score);
+
+  // 30% target the player with the most party pile cards (proxy for playing high cards)
+  if (roll > 0.65) {
+    const byPile = [...active].sort((a, b) =>
+      (state.players[b].partyPile.length) - (state.players[a].partyPile.length)
+    );
+    return { type: 'SLACKER_VOTE', targetId: byPile[0] };
+  }
+
+  return { type: 'SLACKER_VOTE', targetId: scores[0].id };
+}
+
+function _actionLeaderTieBreak(state, playerId, player) {
+  const tied = state.evalTiedPlayers ?? [];
+  if (tied.length === 0) return null;
+  // Pick randomly among tied players
+  const chosen = tied[Math.floor(Math.random() * tied.length)];
+  return { type: 'LEADER_TIE_BREAK', chosenId: chosen };
+}
+
+function _actionAppeal(state, playerId, player) {
+  // Find all eligible appeal targets (have round slacker cards, not self)
+  const active = activePlayers(state);
+  const eligible = active.filter(id =>
+    id !== playerId && (state.evalRoundCounts[id] ?? 0) > 0
+  );
+  if (eligible.length === 0) return { type: 'SKIP_APPEAL' };
+
+  // Appeal to the player with the highest party card value
+  // (most likely to be the true slacker)
+  const best = eligible.reduce((best, id) => {
+    const pv = partyCardValue(state.players[id].semesterProjectCard);
+    return pv > (best.pv ?? -1) ? { id, pv } : best;
+  }, {});
+
+  const myPV = partyCardValue(state.players[playerId].semesterProjectCard);
+  // Only appeal if there's genuinely someone with a higher party card
+  if ((best.pv ?? -1) > myPV) {
+    return { type: 'DO_APPEAL', targetId: best.id };
+  }
+  return { type: 'SKIP_APPEAL' };
 }
 
 // ─────────────────────────────────────────────────────────

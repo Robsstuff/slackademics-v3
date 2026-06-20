@@ -54,14 +54,14 @@ export const POOL_PAIRS = [
 // ── Project targets table ─────────────────────────────────
 // [semesterIndex 0-7][playerCountIndex 0-5 = 3-8 players]
 export const PROJECT_TARGETS = [
-  [10, 13, 16, 19, 22, 25],  // Semester 1 — ENGL 1201
-  [11, 15, 18, 22, 24, 28],  // Semester 2 — ARTS 1202
-  [12, 16, 20, 24, 28, 32],  // Semester 3 — HIST 2303
-  [13, 17, 22, 26, 30, 35],  // Semester 4 — GEND 2304
-  [14, 18, 23, 28, 33, 37],  // Semester 5 — MATH 3305
-  [15, 20, 25, 30, 35, 40],  // Semester 6 — PHYS 3406
-  [16, 21, 26, 32, 37, 42],  // Semester 7 — CHEM 4407
-  [17, 22, 28, 34, 40, 44],  // Semester 8 — ENGG 4508
+  [ 9, 12, 15, 18, 21, 24],  // Semester 1 — ENGL 1201
+  [10, 13, 17, 20, 23, 27],  // Semester 2 — ARTS 1202
+  [11, 15, 19, 22, 25, 30],  // Semester 3 — HIST 2303
+  [12, 16, 20, 24, 28, 32],  // Semester 4 — GEND 2304
+  [13, 17, 22, 26, 30, 35],  // Semester 5 — MATH 3305
+  [14, 18, 24, 28, 33, 37],  // Semester 6 — PHYS 3406
+  [15, 20, 25, 30, 35, 40],  // Semester 7 — CHEM 4407
+  [16, 21, 27, 32, 37, 42],  // Semester 8 — ENGG 4508
 ];
 
 export const SEMESTER_NAMES = [
@@ -194,30 +194,66 @@ function makePlayer(cfg) {
   };
 }
 
+// ── Simple mode constants ─────────────────────────────────
+export const SIMPLE_TOTAL_ROUNDS  = 6;
+export const SIMPLE_FAIL_LIMIT    = 4;
+
+export const SIMPLE_PROJECT_NAMES  = ['English','Creative Arts','Gender Studies','Philosophy','Statistica','Maths'];
+export const SIMPLE_SEMESTER_NAMES = ['ENGL 1001','ARTS 1002','GEND 1003','PHIL 2004','STAT 2005','MATH 3006'];
+
+export const SIMPLE_PROJECT_TARGETS = [
+  [ 9, 12, 15, 18, 21, 24],  // Round 1 — English
+  [10, 13, 18, 22, 24, 28],  // Round 2 — Creative Arts
+  [11, 15, 19, 23, 26, 30],  // Round 3 — Gender Studies
+  [12, 16, 21, 24, 28, 32],  // Round 4 — Philosophy
+  [13, 18, 23, 28, 30, 35],  // Round 5 — Statistica
+  [15, 20, 25, 30, 35, 40],  // Round 6 — Maths
+];
+
+// Full hand dealt at start — 12 cards = 6 exact pairs for 6 rounds, no draws
+export const SIMPLE_STARTING_HAND_VALUES = [0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 'copy', 'copy'];
+
+export function getSimpleTarget(round, activeCount, difficulty = 1) {
+  const rIdx   = Math.max(0, Math.min(round - 1, 5));
+  const plrIdx = Math.max(0, Math.min(activeCount - 3, 5));
+  return Math.ceil(SIMPLE_PROJECT_TARGETS[rIdx][plrIdx] * difficulty);
+}
+
 // ── createState ───────────────────────────────────────────
-export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exam_fail') {
+export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exam_fail', gameMode = 'traditional') {
+  const isSimple = gameMode === 'simple';
   const players = {};
   for (const cfg of playerConfigs) {
     const p = makePlayer(cfg);
-    p.hand = STARTING_HAND_VALUES.map(v => makeCard(v));
+    p.hand = isSimple
+      ? SIMPLE_STARTING_HAND_VALUES.map(v => makeCard(v))
+      : STARTING_HAND_VALUES.map(v => makeCard(v));
     players[cfg.id] = p;
   }
 
-  const playerOrder = shuffle(playerConfigs.map(p => p.id));
+  const playerOrder    = shuffle(playerConfigs.map(p => p.id));
   const effortPool     = buildInitialPool();
   const leadershipDeck = shuffle([...LEADERSHIP_SKILLS]);
   const faceUpSkill    = leadershipDeck.shift() ?? null;
   const faceDownSkill  = leadershipDeck.shift() ?? null;
   const activeCount    = playerOrder.length;
 
+  const slackerTokens = {};
+  for (const cfg of playerConfigs) slackerTokens[cfg.id] = 0;
+
   return {
     phase:          'PLAYING',
     semester:       1,
-    totalSemesters: TOTAL_SEMESTERS,
-    semesterName:   SEMESTER_NAMES[0],
+    totalSemesters: isSimple ? SIMPLE_TOTAL_ROUNDS : TOTAL_SEMESTERS,
+    semesterName:   isSimple ? SIMPLE_SEMESTER_NAMES[0] : SEMESTER_NAMES[0],
+
+    gameMode,
+    failLimit: isSimple ? SIMPLE_FAIL_LIMIT : FAIL_LIMIT,
 
     difficulty,
-    projectTarget:     getTarget(1, activeCount, difficulty),
+    projectTarget: isSimple
+      ? getSimpleTarget(1, activeCount, difficulty)
+      : getTarget(1, activeCount, difficulty),
     targetBonus:       0,
     nextTargetPenalty: 0,
     effortPool,
@@ -254,10 +290,18 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
     // End-game metadata (set when GAMEOVER is reached)
     // 'semesters-complete' | 'elimination-limit' | 'all-expelled'
     gameEndReason:  null,
-    specialWinners: [],  // player IDs declared winner by the all-expelled rule
+    specialWinners: [],
 
-    // Co-Lead fail penalty mode: 'exam_fail' | 'discard'
     coLeadFailMode,
+
+    // Simple mode — Group Evaluation (slacker voting)
+    slackerTokens,          // {playerId: count} accumulated across rounds
+    roundSlackerVotes:  {}, // {voterId: targetId} current round
+    evalVotersRemaining:[],
+    evalRoundCounts:    {}, // {targetId: count} tally for current round
+    evalAccusedId:      null,
+    evalIsOnFail:       false,
+    evalTiedPlayers:    [],
 
     log: [],
   };

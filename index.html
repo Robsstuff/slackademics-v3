@@ -61,7 +61,7 @@
   <p class="menu-sub">The group project simulation game.</p>
 
   <div class="menu-btns" style="margin-top:28px;">
-    <button class="btn-p" onclick="goScreen('lobby')">Start Game</button>
+    <button class="btn-p" onclick="goScreen('mode-select')">Start Game</button>
     <button class="btn-s">Join Game</button>
     <button class="btn-t">How to Play</button>
   </div>
@@ -84,13 +84,54 @@
 </section>
 
 <!-- ═══════════════════════════════════════════
+     SCREEN 1b — MODE SELECT
+═══════════════════════════════════════════ -->
+<section id="s-mode-select" class="screen">
+  <div class="screen-hdr">
+    <button class="hdr-back" onclick="goScreen('menu')" aria-label="Back">&#8592;</button>
+    <span class="hdr-title">Choose Mode</span>
+  </div>
+  <div class="mode-select-body">
+    <p class="mode-select-prompt">What would you like to play?</p>
+    <div class="mode-cards">
+
+      <button class="mode-card" onclick="setLobbyMode('traditional')">
+        <div class="mode-card-icon">&#127891;</div>
+        <div class="mode-card-title">Traditional</div>
+        <ul class="mode-card-desc">
+          <li>8 Semesters</li>
+          <li>5 Fails to eliminate</li>
+          <li>Semester Breaks &amp; card draws</li>
+          <li>Blame, Vote &amp; Snitch</li>
+          <li>Full starting hand (10 cards)</li>
+        </ul>
+      </button>
+
+      <button class="mode-card mode-card-simple" onclick="setLobbyMode('simple')">
+        <div class="mode-card-icon">&#127922;</div>
+        <div class="mode-card-title">New &amp; Simple</div>
+        <ul class="mode-card-desc">
+          <li>6 Rounds</li>
+          <li>4 Fails to eliminate</li>
+          <li>No Semester Breaks</li>
+          <li>Group Evaluation &amp; Slacker cards</li>
+          <li>Full 12-card starting hand</li>
+        </ul>
+      </button>
+
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
      SCREEN 2 — LOBBY
 ═══════════════════════════════════════════ -->
 <section id="s-lobby" class="screen">
   <div class="screen-hdr">
-    <button class="hdr-back" onclick="goScreen('menu')" aria-label="Back">&#8592;</button>
+    <button class="hdr-back" onclick="goScreen('mode-select')" aria-label="Back">&#8592;</button>
     <span class="hdr-title">Game Lobby</span>
     <span class="hdr-badge" id="lobby-count-badge">3 / 8</span>
+    <span class="hdr-badge hdr-badge-mode" id="lobby-mode-badge">Traditional</span>
   </div>
 
   <div class="lobby-body">
@@ -115,7 +156,7 @@
     </div>
 
     <!-- Co-Lead fail rule selector -->
-    <div class="lobby-section">
+    <div class="lobby-section" id="colead-section">
       <div class="sec-lbl">Co-Lead Fail Rule</div>
       <div class="diff-btns" id="colead-btns">
         <button class="diff-btn active" id="btn-colead-examfail" onclick="setCoLeadMode('exam_fail')">
@@ -598,6 +639,20 @@
 <script>
 'use strict';
 
+/* ── Game mode selection ─────────────────────────────── */
+var _lobbyMode = 'traditional';
+
+function setLobbyMode(mode) {
+  _lobbyMode = mode;
+  // Update lobby header badge to show chosen mode
+  var badge = document.getElementById('lobby-mode-badge');
+  if (badge) badge.textContent = mode === 'simple' ? 'New & Simple' : 'Traditional';
+  // Hide Co-Lead rule for Simple (no semester breaks / co-lead card draws)
+  var coLeadSection = document.getElementById('colead-section');
+  if (coLeadSection) coLeadSection.style.display = mode === 'simple' ? 'none' : '';
+  goScreen('lobby');
+}
+
 /* ── Screen navigation ───────────────────────────────── */
 function goScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -780,7 +835,7 @@ document.getElementById('start-game-btn').addEventListener('click', function(e) 
     };
   });
 
-  window.__slk.startGame(lobbyPlayers);
+  window.__slk.startGame(lobbyPlayers, _lobbyMode);
 }, true); // capture = true so this fires before the onclick goScreen
 
 </script>
