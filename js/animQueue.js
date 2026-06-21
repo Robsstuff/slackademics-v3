@@ -288,8 +288,10 @@ export function buildStepsFromEvents(events, state) {
       case 'EVAL_ACCUSED':
       case 'EVAL_CONFIRMED_SLACKER':
       case 'EVAL_APPEAL_OFFERED':
+      case 'EVAL_APPEAL_NAMED':
       case 'EVAL_APPEAL_SUCCESS':
       case 'EVAL_APPEAL_FAIL':
+      case 'SLACKER_CARDS_CAPPED':
         steps.push(_stepEvalMessage(ev, state));
         break;
 
@@ -1114,8 +1116,10 @@ function _stepEvalMessage(ev, state) {
     EVAL_ACCUSED:         'blame',
     EVAL_CONFIRMED_SLACKER:'fail',
     EVAL_APPEAL_OFFERED:  'blame',
+    EVAL_APPEAL_NAMED:    'blame',
     EVAL_APPEAL_SUCCESS:  'pass',
     EVAL_APPEAL_FAIL:     'fail',
+    SLACKER_CARDS_CAPPED: 'pass',
   };
   return {
     label: ev.type,
