@@ -363,6 +363,20 @@
   border: 1.5px solid var(--border); border-radius: var(--r-sm);
   padding: 2px 5px; box-shadow: 1px 1px 0 var(--border);
 }
+/* Slacker Bank — permanent, locked total pinned next to the party pile */
+.slacker-bank-badge {
+  display: flex; align-items: center; gap: 2px;
+  margin-left: 4px; padding-left: 4px;
+  border-left: 1.5px dashed rgba(0,0,0,.35);
+}
+.slacker-bank-icon {
+  width: 14px; height: 19px; object-fit: cover;
+  border-radius: 2px; display: block; filter: grayscale(.3);
+}
+.slacker-bank-count {
+  font-family: var(--font-d); font-size: 11px; font-weight: 700;
+  color: var(--fg);
+}
 /* Card back image in party pile indicator */
 .party-pile-back {
   width: 16px; height: 22px; border-radius: 2px;

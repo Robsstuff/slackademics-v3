@@ -25,20 +25,28 @@ export function setSkillBonus(n) { _currentSkillBonus = n; }
  *  Signature: onCardClick(partyCardId, projectCardId) */
 export function setCardClickCallback(fn) { _cardClickCb = fn; }
 
-// ── Slacker card count, including the current round in progress ──
-// Slacker cards land on a target the instant a vote is cast — shown
-// live during voting (roundSlackerVotes) and during tie-break/appeal
-// (evalRoundCounts), on top of the permanent total (slackerTokens).
-function _displayedSlackerCount(state, playerId) {
-  const permanent = state.slackerTokens?.[playerId] ?? 0;
+// ── Slacker Bank — permanent, locked total shown next to the party
+// pile. Once a round's Slacker cards are banked here they can never
+// be moved or changed again by any later round's events.
+function _slackerBankCount(state, playerId) {
+  return state.slackerTokens?.[playerId] ?? 0;
+}
+
+// ── Current-round Slacker pile — cards not yet banked. Still fully
+// mutable (votes, tie-break, appeal can move these) until the round
+// ends, at which point they're capped and merged into the bank.
+function _currentRoundSlackerCount(state, playerId) {
   if (state.phase === 'GROUP_EVAL') {
     let live = 0;
     for (const targetId of Object.values(state.roundSlackerVotes || {})) {
       if (targetId === playerId) live++;
     }
-    return permanent + live;
+    return live;
   }
-  return permanent + (state.evalRoundCounts?.[playerId] ?? 0);
+  if (state.phase === 'GROUP_EVAL_LEADER_TIE' || state.phase === 'GROUP_EVAL_APPEAL') {
+    return state.evalRoundCounts?.[playerId] ?? 0;
+  }
+  return 0;
 }
 
 // ── Phase display ─────────────────────────────────────────
@@ -292,17 +300,29 @@ export function renderPlayersBar(state) {
       : isSnitcher ? 'Snitching'
       : 'Player';
 
-    const failTotal  = totalFails(p);
-    const failLimit  = state.failLimit ?? 5;
-    const slackerCnt = _displayedSlackerCount(state, id);
+    const failTotal    = totalFails(p);
+    const failLimit    = state.failLimit ?? 5;
+    const slackerBank  = _slackerBankCount(state, id);
+    const slackerRound = _currentRoundSlackerCount(state, id);
 
     let inner =
       `<div class="slot-name">${esc(p.name)}</div>` +
       `<div class="slot-role">${roleText}</div>` +
-      `<div class="slot-party"><img src="${CARD_BACK_SRC}" alt="cards" class="party-pile-back"/><span class="party-pile-count">${p.partyPile.length}</span></div>` +
+      `<div class="slot-party">` +
+        `<img src="${CARD_BACK_SRC}" alt="cards" class="party-pile-back"/><span class="party-pile-count">${p.partyPile.length}</span>` +
+        (slackerBank > 0
+          ? `<span class="slacker-bank-badge" title="Slacker Bank — locked, ${slackerBank} pt${slackerBank !== 1 ? 's' : ''} off final score">` +
+              `<img src="./cards/slacker.jpg" alt="Slacker Bank" class="slacker-bank-icon"/>` +
+              `<span class="slacker-bank-count">${slackerBank}</span>` +
+            `</span>`
+          : '') +
+      `</div>` +
       `<div class="fail-pips">${failPipsHTML(failTotal, failLimit)}</div>` +
-      (slackerCnt > 0
-        ? `<div class="slot-slacker-tokens"><img src="./cards/slacker.jpg" alt="Slacker" class="slacker-token-icon"/><span class="slacker-token-count">${slackerCnt}</span></div>`
+      (slackerRound > 0
+        ? `<div class="slot-slacker-tokens" title="Slacker cards this round — not yet banked">` +
+            `<img src="./cards/slacker.jpg" alt="Slacker (this round)" class="slacker-token-icon"/>` +
+            `<span class="slacker-token-count">${slackerRound}</span>` +
+          `</div>`
         : '');
 
     if (p.extraCredits > 0) {

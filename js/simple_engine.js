@@ -286,7 +286,27 @@ function _partyTopCardValue(card) {
 }
 
 function _finalizeEval(state, events) {
-  // Move all remaining round slacker cards to each player's permanent total
+  // Cap: a player can never bank more Slacker cards this round than the
+  // value of their own current top Party Pile card — excess is discarded
+  // from the round pile BEFORE it moves to the bank. Once a card is in
+  // the bank it's locked and is never touched again by a later round.
+  for (const id of activePlayers(state)) {
+    const player = state.players[id];
+    const cap    = _partyTopCardValue(player.partyPile[player.partyPile.length - 1]);
+    const held   = state.evalRoundCounts[id] ?? 0;
+    if (held > cap) {
+      state.evalRoundCounts[id] = cap;
+      events.push(evt('SLACKER_CARDS_CAPPED', { playerId: id, cap, discarded: held - cap }));
+      addLog(state, {
+        type:     'system',
+        text:     `${player.name}'s top Party card (${cap}) caps their round Slacker cards — ${held - cap} discarded.`,
+        playerId: id,
+      });
+    }
+  }
+
+  // Move this round's (now-capped) Slacker cards into each player's
+  // permanent Slacker Bank, next to their Party Pile.
   for (const [id, count] of Object.entries(state.evalRoundCounts)) {
     if (count > 0) {
       state.slackerTokens[id] = (state.slackerTokens[id] ?? 0) + count;
@@ -294,23 +314,6 @@ function _finalizeEval(state, events) {
   }
   state.evalRoundCounts = {};
   state.evalAccusedId   = null;
-
-  // Cap: a player can never hold more Slacker cards than the value of
-  // their own current top Party Pile card — excess is discarded.
-  for (const id of activePlayers(state)) {
-    const player = state.players[id];
-    const cap    = _partyTopCardValue(player.partyPile[player.partyPile.length - 1]);
-    const held   = state.slackerTokens[id] ?? 0;
-    if (held > cap) {
-      state.slackerTokens[id] = cap;
-      events.push(evt('SLACKER_CARDS_CAPPED', { playerId: id, cap, discarded: held - cap }));
-      addLog(state, {
-        type:     'system',
-        text:     `${player.name}'s top Party card (${cap}) caps their Slacker cards — ${held - cap} discarded.`,
-        playerId: id,
-      });
-    }
-  }
 
   events.push(evt('EVAL_ROUND_DONE', { slackerTokens: { ...state.slackerTokens } }));
   addLog(state, {
