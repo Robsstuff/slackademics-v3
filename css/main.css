@@ -1250,23 +1250,6 @@
 }
 .appeal-card-label { font-size: 12px; color: var(--muted); }
 .appeal-card-pv    { font-size: 13px; font-weight: 700; }
-.appeal-card-note  { font-size: 11px; color: var(--muted); margin-top: 4px; }
-
-.appeal-target-card { min-width: 100px; max-width: 130px; }
-.appeal-target-card .appeal-card-img { width: 72px; }
-.appeal-wins  { border-color: var(--green,  #16a34a) !important; }
-.appeal-loses { opacity: .65; }
-
-.appeal-win-badge {
-  display: inline-block; background: var(--green, #16a34a); color: #fff;
-  font-size: 9px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .06em; padding: 1px 5px; border-radius: 99px; margin-left: 4px;
-}
-.appeal-lose-badge {
-  display: inline-block; background: var(--border); color: var(--muted);
-  font-size: 9px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .06em; padding: 1px 5px; border-radius: 99px; margin-left: 4px;
-}
 
 /* ── Slacker token badge on player slot ─────────────── */
 .slot-slacker-tokens {

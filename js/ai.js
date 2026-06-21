@@ -26,7 +26,6 @@ import { pick }                                         from './utils.js';
 import { activePlayers, getAvailablePairKeys, isValidPair, computePileTotal }
                                                         from './engine.js';
 import { totalFails }                                   from './state.js';
-import { partyCardValue }                               from './simple_engine.js';
 
 // ── Public entry point ────────────────────────────────────
 export function getAIAction(state, playerId) {
@@ -125,19 +124,21 @@ function _actionAppeal(state, playerId, player) {
   );
   if (eligible.length === 0) return { type: 'SKIP_APPEAL' };
 
-  // Appeal to the player with the highest party card value
-  // (most likely to be the true slacker)
-  const best = eligible.reduce((best, id) => {
-    const pv = partyCardValue(state.players[id].semesterProjectCard);
-    return pv > (best.pv ?? -1) ? { id, pv } : best;
-  }, {});
-
-  const myPV = partyCardValue(state.players[playerId].semesterProjectCard);
-  // Only appeal if there's genuinely someone with a higher party card
-  if ((best.pv ?? -1) > myPV) {
-    return { type: 'DO_APPEAL', targetId: best.id };
+  // The AI can't see hidden party pile cards any more than a human can —
+  // it has to guess. 60% pure random guess; 40% informed guess using
+  // suspicion built up from previously revealed project-pile cards.
+  if (Math.random() < 0.60) {
+    const targetId = eligible[Math.floor(Math.random() * eligible.length)];
+    return { type: 'DO_APPEAL', targetId };
   }
-  return { type: 'SKIP_APPEAL' };
+
+  _updateSuspicion(state, playerId, player);
+  const best = eligible.reduce((m, id) => {
+    const score = (player.suspicionScores[id] ?? 0) + Math.random() * 2;
+    return score > m.score ? { id, score } : m;
+  }, { id: eligible[0], score: -Infinity });
+
+  return { type: 'DO_APPEAL', targetId: best.id };
 }
 
 // ─────────────────────────────────────────────────────────

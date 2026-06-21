@@ -94,6 +94,31 @@ export function startGame(lobbyPlayers, gameMode = 'traditional', options = {}) 
 function _advance() {
   if (!_state || queueBusy()) return;
 
+  // Extra credit recipient pick can be pending while phase is still DEADLINE
+  // (it's set inside resolveOutcome before any phase transition to BREAK) —
+  // check it before the phase switch so it isn't skipped.
+  if (_state.pendingSkillStep === 'extra-credit-pick') {
+    const leaderId = _state.projectLeaderId;
+    const leader   = _state.players[leaderId];
+    if (leader && !leader.isExpelled) {
+      if (leader.isHuman) {
+        setTimeout(() => _openExtraCreditOverlay(), _delay(300));
+      } else {
+        const action = getAIAction(_state, leaderId);
+        if (action?.type === 'AWARD_EXTRA_CREDIT') {
+          setTimeout(() => {
+            try {
+              _dispatchEvents(awardLeaderExtraCredit(_state, {
+                leaderId, recipientId: action.recipientId,
+              }));
+            } catch (e) { console.warn(e); }
+          }, _delay(AI_THINK_DELAY));
+        }
+      }
+    }
+    return;
+  }
+
   const phase = _state.phase;
 
   switch (phase) {
@@ -108,28 +133,6 @@ function _advance() {
     }
 
     case 'BREAK': {
-      // If extra credit pick is pending, open overlay for human leader or auto for AI
-      if (_state.pendingSkillStep === 'extra-credit-pick') {
-        const leaderId = _state.projectLeaderId;
-        const leader   = _state.players[leaderId];
-        if (leader && !leader.isExpelled) {
-          if (leader.isHuman) {
-            setTimeout(() => _openExtraCreditOverlay(), _delay(300));
-          } else {
-            const action = getAIAction(_state, leaderId);
-            if (action?.type === 'AWARD_EXTRA_CREDIT') {
-              setTimeout(() => {
-                try {
-                  _dispatchEvents(awardLeaderExtraCredit(_state, {
-                    leaderId, recipientId: action.recipientId,
-                  }));
-                } catch (e) { console.warn(e); }
-              }, _delay(AI_THINK_DELAY));
-            }
-          }
-        }
-        return;
-      }
       // Simple mode: auto-advance with no card draw
       if (_state.gameMode === 'simple') {
         setTimeout(() => _dispatchEvents(semesterBreak(_state)), _delay(1200));
@@ -925,27 +928,21 @@ function _openAppealOverlay() {
 
   const accusedId = _state.evalAccusedId;
   if (!accusedId) return;
-  const accused  = _state.players[accusedId];
-  const myPV     = partyCardValue(accused.semesterProjectCard);
-  const myCard   = accused.semesterProjectCard;
-  const myCardName = myCard ? (myCard.type === 'copy' ? 'X2 Copy' : `${myCard.name ?? myCard.value}`) : '?';
+  const accused     = _state.players[accusedId];
+  const myCard      = accused.semesterProjectCard;
+  const myCardName  = myCard ? (myCard.type === 'copy' ? 'X2 Copy' : `${myCard.name ?? myCard.value}`) : '?';
+  const myPV        = partyCardValue(myCard);
 
-  // Find the player with the highest party value this round (to show context)
-  const active     = activePlayers(_state);
-  const allVals    = active.map(id => ({ id, pv: partyCardValue(_state.players[id].semesterProjectCard) }));
-  const highestPV  = Math.max(...allVals.map(x => x.pv));
-  const highPlayer = allVals.find(x => x.pv === highestPV && x.id !== accusedId);
-
-  // Eligible appeal targets: active, not self, have round slacker cards
+  // Eligible appeal targets: active, not self, have round slacker cards.
+  // Targets' actual party pile cards/values are hidden info — same as in a
+  // physical game, players can only infer values from the project pile
+  // themselves. The overlay shows names only, no opponent card data.
+  const active   = activePlayers(_state);
   const eligible = active.filter(id => id !== accusedId && (_state.evalRoundCounts[id] ?? 0) > 0);
 
   const overlay = document.createElement('div');
   overlay.id = 'appeal-overlay';
   overlay.className = 'overlay-screen active';
-
-  const highNote = highPlayer
-    ? `Highest party card this round: <strong>${_esc(_state.players[highPlayer.id].name)}</strong> (Party ${highestPV})`
-    : `Highest party card this round: Party ${highestPV}`;
 
   overlay.innerHTML = `
     <div class="overlay-sheet slacker-vote-sheet">
@@ -954,14 +951,13 @@ function _openAppealOverlay() {
         <img src="${_cardImg(myCard)}" alt="${_esc(myCardName)}" class="appeal-card-img"/>
         <div class="appeal-accused-info">
           <div class="appeal-accused-name">${_esc(accused.name)}</div>
-          <div class="appeal-card-label">Played: <strong>${_esc(myCardName)}</strong></div>
+          <div class="appeal-card-label">You played: <strong>${_esc(myCardName)}</strong></div>
           <div class="appeal-card-pv">Your Party value: <strong>${myPV}</strong></div>
-          <div class="appeal-card-note">${highNote}</div>
         </div>
       </div>
       <div class="slacker-vote-intro">
-        Your party card wasn't the highest — name someone you think is the real Slacker,
-        or skip the appeal.
+        Your party card wasn't the highest — name someone you think is the real Slacker
+        (work it out from the project pile), or skip the appeal.
       </div>
       <div class="slacker-vote-grid" id="ap-grid"></div>
       <button class="btn-t" id="ap-skip" style="margin-top:14px;">Skip Appeal (accept verdict)</button>
@@ -969,24 +965,16 @@ function _openAppealOverlay() {
 
   const grid = overlay.querySelector('#ap-grid');
   for (const pid of eligible) {
-    const p      = _state.players[pid];
-    const pv     = partyCardValue(p.semesterProjectCard);
-    const pCard  = p.semesterProjectCard;
-    const pCName = pCard ? (pCard.type === 'copy' ? 'X2 Copy' : `${pCard.name ?? pCard.value}`) : '?';
-    const wins   = pv > myPV;
+    const p         = _state.players[pid];
+    const cardCount = _state.evalRoundCounts[pid] ?? 0;
 
     const btn = document.createElement('div');
-    btn.className = `slacker-vote-card appeal-target-card${wins ? ' appeal-wins' : ' appeal-loses'}`;
+    btn.className = 'slacker-vote-card';
     btn.setAttribute('role', 'button');
     btn.setAttribute('tabindex', '0');
     btn.innerHTML = `
-      <img src="${_cardImg(pCard)}" alt="${_esc(pCName)}" class="appeal-card-img"/>
       <div class="slacker-vote-name">${_esc(p.name)}</div>
-      <div class="appeal-card-label">Played: <strong>${_esc(pCName)}</strong></div>
-      <div class="appeal-card-pv">Party value: <strong>${pv}</strong>
-        ${wins ? '<span class="appeal-win-badge">WINS ✓</span>' : '<span class="appeal-lose-badge">LOSES ✗</span>'}
-      </div>
-      <div class="slacker-vote-stats">${_state.evalRoundCounts[pid]} slacker card${_state.evalRoundCounts[pid] !== 1 ? 's' : ''}</div>`;
+      <div class="slacker-vote-stats">${cardCount} slacker card${cardCount !== 1 ? 's' : ''}</div>`;
 
     const appeal = () => {
       overlay.remove();

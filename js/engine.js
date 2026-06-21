@@ -250,8 +250,8 @@ export function awardLeaderExtraCredit(state, { leaderId, recipientId }) {
   if (state.gameMode === 'simple') {
     addLog(state, { type: 'system', text: 'Extra credit awarded — Group Evaluation skipped this round.' });
     events.push(evt('GROUP_EVAL_SKIPPED', {}));
-    state.phase = 'BREAK';
   }
+  state.phase = 'BREAK';
 
   return events;
 }
