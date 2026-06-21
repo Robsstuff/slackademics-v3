@@ -25,6 +25,22 @@ export function setSkillBonus(n) { _currentSkillBonus = n; }
  *  Signature: onCardClick(partyCardId, projectCardId) */
 export function setCardClickCallback(fn) { _cardClickCb = fn; }
 
+// ── Slacker card count, including the current round in progress ──
+// Slacker cards land on a target the instant a vote is cast — shown
+// live during voting (roundSlackerVotes) and during tie-break/appeal
+// (evalRoundCounts), on top of the permanent total (slackerTokens).
+function _displayedSlackerCount(state, playerId) {
+  const permanent = state.slackerTokens?.[playerId] ?? 0;
+  if (state.phase === 'GROUP_EVAL') {
+    let live = 0;
+    for (const targetId of Object.values(state.roundSlackerVotes || {})) {
+      if (targetId === playerId) live++;
+    }
+    return permanent + live;
+  }
+  return permanent + (state.evalRoundCounts?.[playerId] ?? 0);
+}
+
 // ── Phase display ─────────────────────────────────────────
 const PHASE_LABEL = {
   PLAYING:               'Playing Cards',
@@ -278,7 +294,7 @@ export function renderPlayersBar(state) {
 
     const failTotal  = totalFails(p);
     const failLimit  = state.failLimit ?? 5;
-    const slackerCnt = (state.slackerTokens?.[id] ?? 0);
+    const slackerCnt = _displayedSlackerCount(state, id);
 
     let inner =
       `<div class="slot-name">${esc(p.name)}</div>` +

@@ -17,7 +17,7 @@
      EVAL_APPEAL_OFFERED  { accusedId }
      EVAL_APPEAL_NAMED    { accusedId, targetId }
      EVAL_APPEAL_SUCCESS  { accusedId, targetId, targetPartyVal }
-     EVAL_APPEAL_FAIL     { accusedId, targetId }
+     EVAL_APPEAL_FAIL     { accusedId, targetId, taken }
      SLACKER_CARDS_CAPPED { playerId, cap, discarded }
      EVAL_ROUND_DONE      { slackerTokens }
    ===================================================== */
@@ -131,15 +131,17 @@ export function doAppeal(state, accusedId, targetId) {
       });
     }
   } else {
-    // Appeal fails — accused takes one card from named player only
-    const taken = Math.min(state.evalRoundCounts[targetId] ?? 0, 1);
-    state.evalRoundCounts[targetId]  = Math.max(0, (state.evalRoundCounts[targetId] ?? 0) - 1);
+    // Appeal fails — named player's entire round pile transfers to the
+    // accused. Everyone else's Slacker cards stay exactly where they are.
+    const taken = state.evalRoundCounts[targetId] ?? 0;
+    state.evalRoundCounts[targetId]  = 0;
     state.evalRoundCounts[accusedId] = (state.evalRoundCounts[accusedId] ?? 0) + taken;
 
-    events.push(evt('EVAL_APPEAL_FAIL', { accusedId, targetId }));
+    events.push(evt('EVAL_APPEAL_FAIL', { accusedId, targetId, taken }));
     addLog(state, {
       type: 'blame',
-      text: `${accused.name}'s appeal failed — ${target.name}'s Party card (${targetPV}) was not higher. ${accused.name} takes one Slacker card from ${target.name}.`,
+      text: `${accused.name}'s appeal failed — ${target.name}'s Party card (${targetPV}) was not higher. ` +
+            `${target.name} gives ${accused.name} ${taken > 0 ? `their ${taken} Slacker card${taken !== 1 ? 's' : ''}` : 'their Slacker cards (none held)'}.`,
     });
   }
 
