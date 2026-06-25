@@ -326,9 +326,13 @@ function _startGroupEval(state, events) {
 
 // ── Start "Who's to Blame?" fail vote (Simple mode) ───────
 // Runs whenever a project FAILS in simple mode. Replaces the old rule
-// where every active player took a Group Fail.
+// where every active player took a Group Fail. Every active player now
+// unconditionally loses their top Party card at the end of this round,
+// regardless of who ends up blamed.
 function _startFailBlameVote(state, events) {
   const active = activePlayers(state);
+  for (const id of active) markTopPartyForDiscard(state, id);
+
   state.roundFailVotes          = {};
   state.failRoundCounts         = {};
   state.failTiedPlayers         = [];
@@ -341,7 +345,7 @@ function _startFailBlameVote(state, events) {
   }));
   addLog(state, {
     type: 'fail',
-    text: `The project FAILED — who is to blame? Each player votes.`,
+    text: `The project FAILED — who is to blame? Each player votes. Everyone will lose their top Party card at the end of the round.`,
   });
 }
 
@@ -442,20 +446,8 @@ function resolveOutcome(state, events) {
 
     if (state.gameMode === 'simple') {
       // Simple mode: no Group Fail to everyone any more — instead a
-      // "Who's to Blame?" vote + Snitch chain determines who takes fails.
-      // Option: discard all party piles on fail (independent toggle)
-      if (state.failDiscardPartyPiles) {
-        const active    = activePlayers(state);
-        const discarded = {};
-        for (const id of active) {
-          const pile = state.players[id].partyPile;
-          if (pile.length > 0) {
-            discarded[id] = pile.pop();
-          }
-        }
-        events.push(evt('PARTY_PILES_DISCARDED', { discarded }));
-        addLog(state, { type: 'fail', text: 'Project failed — each player loses their top party pile card!' });
-      }
+      // "Who's to Blame?" vote + one-shot Snitch decides who keeps the
+      // Fail. Everyone still loses their top Party card at round's end.
       _startFailBlameVote(state, events);
     } else {
       // Group Fail — ALL active players
@@ -1129,13 +1121,12 @@ export function semesterBreak(state) {
   state.evalVotersRemaining        = [];
   state.evalTiedPlayers            = [];
   state.extraCreditAwardedThisRound = false;
-  // Reset "Who's to Blame?" fail-vote + Snitch chain state for new round
+  // Reset "Who's to Blame?" fail-vote + Snitch state for new round
   state.roundFailVotes             = {};
   state.failRoundCounts            = {};
   state.failVoteVotersRemaining    = [];
   state.failTiedPlayers            = [];
   state.simpleSnitchCurrentId      = null;
-  state.simpleSnitchedThisRound    = [];
 
   // Apply carry-over target penalty (Curve the Grade)
   state.targetBonus      = state.nextTargetPenalty || 0;
@@ -1434,8 +1425,9 @@ function _computeFinalScores(state) {
     const partyScore = computePileTotal(p.partyPile, effects);
     const ecBonus    = p.extraCredits * 3;
     const cleanBonus = p.individualFails === 0 ? p.extraCredits * 2 : 0;
+    // Each Slacker card is worth -3 points
     const slackerPenalty = state.gameMode === 'simple'
-      ? (state.slackerTokens?.[id] ?? 0)
+      ? (state.slackerTokens?.[id] ?? 0) * 3
       : 0;
     p.academicPoints = Math.max(0, partyScore) + ecBonus + cleanBonus - slackerPenalty;
   }

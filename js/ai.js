@@ -175,16 +175,11 @@ function _actionFailLeaderTieBreak(state, playerId, player) {
 // ─────────────────────────────────────────────────────────
 
 function _actionSimpleSnitch(state, playerId, player) {
-  const already = state.simpleSnitchedThisRound || [];
-  const others  = activePlayers(state).filter(id => id !== playerId && !already.includes(id));
-  if (others.length === 0) return null;   // engine auto-resolves this case
+  const others = activePlayers(state).filter(id => id !== playerId);
+  if (others.length === 0) return null;   // shouldn't happen with >=2 active players
 
-  const myTop = player.partyPile[player.partyPile.length - 1];
-  const myVal = myTop ? (myTop.type === 'copy' ? 9 : myTop.value) : -1;
-
-  // Target whoever holds the highest top Party card — that's both the
-  // best chance of extending the chain and the best chance of finding
-  // the true top (which also earns a bonus Slacker card).
+  // One shot at a Snitch — name whoever holds the highest top Party card
+  // to maximise the chance their card beats ours.
   let bestId  = others[0];
   let bestVal = -Infinity;
   for (const id of others) {

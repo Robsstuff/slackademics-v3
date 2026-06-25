@@ -63,7 +63,7 @@ const PHASE_LABEL = {
   GROUP_EVAL_LEADER_TIE: 'Tie Break',
   SIMPLE_BLAME_VOTE:     "Who's to Blame?",
   SIMPLE_BLAME_LEADER_TIE: 'Tie Break',
-  SIMPLE_SNITCH:         'Snitch Chain',
+  SIMPLE_SNITCH:         'Snitch',
   GAMEOVER:              'Game Over',
 };
 
@@ -315,7 +315,7 @@ export function renderPlayersBar(state) {
       `<div class="slot-party">` +
         `<img src="${CARD_BACK_SRC}" alt="cards" class="party-pile-back"/><span class="party-pile-count">${p.partyPile.length}</span>` +
         (slackerBank > 0
-          ? `<span class="slacker-bank-badge" title="Slacker Bank — locked, ${slackerBank} pt${slackerBank !== 1 ? 's' : ''} off final score">` +
+          ? `<span class="slacker-bank-badge" title="Slacker Bank — locked, ${slackerBank * 3} point${slackerBank * 3 !== 1 ? 's' : ''} off final score">` +
               `<img src="./cards/slacker.jpg" alt="Slacker Bank" class="slacker-bank-icon"/>` +
               `<span class="slacker-bank-count">${slackerBank}</span>` +
             `</span>`
@@ -895,9 +895,13 @@ export function renderPlayerStatus(state, humanId) {
   const partyScore = computePileTotal(p.partyPile || [], { cramCount: _cramC, cheatCount: _cheatC });
   const ecBonus    = (p.extraCredits || 0) * 3;
   const cleanBonus = (p.individualFails || 0) === 0 ? (p.extraCredits || 0) * 2 : 0;
+  // Each Slacker card is worth -3 points (simple mode only)
+  const slackerPenalty = state.gameMode === 'simple'
+    ? (state.slackerTokens?.[humanId] ?? 0) * 3
+    : 0;
   const liveScore  = state.phase === 'GAMEOVER'
     ? (p.academicPoints || 0)
-    : partyScore + ecBonus + cleanBonus;
+    : Math.max(0, partyScore) + ecBonus + cleanBonus - slackerPenalty;
 
   el.innerHTML =
     '<div class="status-section">' +

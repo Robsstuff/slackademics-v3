@@ -196,7 +196,7 @@ function makePlayer(cfg) {
 
 // ── Simple mode constants ─────────────────────────────────
 export const SIMPLE_TOTAL_ROUNDS  = 6;
-export const SIMPLE_FAIL_LIMIT    = 3;
+export const SIMPLE_FAIL_LIMIT    = 2;
 
 export const SIMPLE_PROJECT_NAMES  = ['English','Creative Arts','Gender Studies','Philosophy','Statistica','Maths'];
 export const SIMPLE_SEMESTER_NAMES = ['ENGL 1001','ARTS 1002','GEND 1003','PHIL 2004','STAT 2005','MATH 3006'];
@@ -303,17 +303,14 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
     evalAccusedId:      null,
     evalTiedPlayers:    [],
 
-    // Simple mode — "Who's to Blame?" fail vote + Snitch chain
+    // Simple mode — "Who's to Blame?" fail vote + one-shot Snitch
     // (replaces Group Evaluation whenever the project FAILS)
     roundFailVotes:           {}, // {voterId: targetId} current round
     failVoteVotersRemaining:  [],
     failRoundCounts:          {}, // {targetId: count} tally for current round
     failTiedPlayers:          [],
     simpleSnitchCurrentId:    null,
-    simpleSnitchedThisRound:  [],
 
-    // Simple mode options
-    failDiscardPartyPiles:      isSimple && !!(options.failDiscardPartyPiles),
     extraCreditAwardedThisRound: false,
 
     log: [],

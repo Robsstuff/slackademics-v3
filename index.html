@@ -112,9 +112,9 @@
         <div class="mode-card-title">New &amp; Simple</div>
         <ul class="mode-card-desc">
           <li>6 Rounds</li>
-          <li>3 Fails to eliminate</li>
+          <li>2 Fails to eliminate</li>
           <li>No Semester Breaks</li>
-          <li>Group Evaluation, Who's to Blame? &amp; Slacker cards</li>
+          <li>Group Evaluation, Who's to Blame? &amp; Slacker cards (-3 pts each)</li>
           <li>Full 12-card starting hand</li>
         </ul>
       </button>
@@ -166,17 +166,6 @@
         <button class="diff-btn" id="btn-colead-discard" onclick="setCoLeadMode('discard')">
           <span class="diff-name">Discard</span>
           <span class="diff-desc">+1 fail when Co-Lead is discarded via blame/snitch</span>
-        </button>
-      </div>
-    </div>
-
-    <!-- Simple mode options (only shown in New & Simple) -->
-    <div class="lobby-section" id="simple-options-section" style="display:none">
-      <div class="sec-lbl">New &amp; Simple Options</div>
-      <div class="diff-btns">
-        <button class="diff-btn" id="btn-fail-discard" onclick="toggleFailDiscard(this)">
-          <span class="diff-name">Fail = Discard Party Pile</span>
-          <span class="diff-desc">When the project fails, each player loses their top party pile card</span>
         </button>
       </div>
     </div>
@@ -651,8 +640,7 @@
 'use strict';
 
 /* ── Game mode selection ─────────────────────────────── */
-var _lobbyMode        = 'traditional';
-var _failDiscardParty = false;
+var _lobbyMode = 'traditional';
 
 function setLobbyMode(mode) {
   _lobbyMode = mode;
@@ -661,17 +649,7 @@ function setLobbyMode(mode) {
   if (badge) badge.textContent = isSimple ? 'New & Simple' : 'Traditional';
   var coLeadSection = document.getElementById('colead-section');
   if (coLeadSection) coLeadSection.style.display = isSimple ? 'none' : '';
-  var simpleSection = document.getElementById('simple-options-section');
-  if (simpleSection) simpleSection.style.display = isSimple ? '' : 'none';
-  _failDiscardParty = false;
-  var btn = document.getElementById('btn-fail-discard');
-  if (btn) btn.classList.remove('active');
   goScreen('lobby');
-}
-
-function toggleFailDiscard(btn) {
-  _failDiscardParty = !_failDiscardParty;
-  btn.classList.toggle('active', _failDiscardParty);
 }
 
 /* ── Screen navigation ───────────────────────────────── */
@@ -856,7 +834,7 @@ document.getElementById('start-game-btn').addEventListener('click', function(e) 
     };
   });
 
-  window.__slk.startGame(lobbyPlayers, _lobbyMode, { failDiscardPartyPiles: _failDiscardParty });
+  window.__slk.startGame(lobbyPlayers, _lobbyMode);
 }, true); // capture = true so this fires before the onclick goScreen
 
 </script>
