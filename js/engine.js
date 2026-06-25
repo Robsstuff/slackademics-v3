@@ -1127,6 +1127,7 @@ export function semesterBreak(state) {
   state.failVoteVotersRemaining    = [];
   state.failTiedPlayers            = [];
   state.simpleSnitchCurrentId      = null;
+  state.simpleSnitchedThisRound    = [];
 
   // Apply carry-over target penalty (Curve the Grade)
   state.targetBonus      = state.nextTargetPenalty || 0;

@@ -14,22 +14,24 @@
        Every active player loses their top Party card at the end
        of the round, no matter what happens below. Players vote on
        who's to blame (ties broken the same way as above); whoever
-       gets the most votes is on the hook for a Fail, but gets ONE
-       chance to Snitch their way out of it by naming another
-       player. If the named player's top Party card is HIGHER than
-       the blamed player's own, the Snitch succeeds — the Fail is
-       dropped, but they still bank a Slacker card (-3 points). If
-       it's equal or lower (which is guaranteed if the blamed player
-       already holds the single highest card), the Snitch fails —
-       they keep the Fail AND bank a Slacker card. The named player
-       faces no consequence either way.
+       gets the most votes is on the hook for a Fail, but can try to
+       Snitch their way out of it by naming another player. If the
+       named player's top Party card is HIGHER than the current
+       holder's, the Snitch succeeds — liability (and the obligation
+       to Snitch) transfers to the named player, and the chain keeps
+       climbing. Either way, whoever just attempted a Snitch banks a
+       Slacker card (-3 points) for the attempt. The chain ends —
+       and that link keeps the Fail (on top of their Slacker card) —
+       either when a Snitch attempt fails (named player's card is
+       equal or lower), or when the current holder has nobody left
+       to name. Exactly one Fail is always handed out per round.
 
    Phases added by this module:
      GROUP_EVAL             — all players placing slacker votes
      GROUP_EVAL_LEADER_TIE  — leader breaks a slacker-vote tie
      SIMPLE_BLAME_VOTE      — all players voting on who's to blame
      SIMPLE_BLAME_LEADER_TIE— leader breaks a blame-vote tie
-     SIMPLE_SNITCH          — the blamed player names one target
+     SIMPLE_SNITCH          — the current holder names a target
 
    Events emitted:
      SLACKER_VOTE_CAST      { voterId, targetId }
@@ -44,9 +46,11 @@
      FAIL_BLAME_TIE            { tied, leaderId }
      FAIL_BLAME_TIE_BROKEN     { fromId, toId, leaderId }
      FAIL_BLAMED               { blamedId }
-     SIMPLE_SNITCH_REVEALED    { snitcherId, targetId, targetCard, sVal, tVal }
+     SIMPLE_SNITCH_TURN        { snitcherId }
+     SIMPLE_SNITCH_REVEALED    { snitcherId, targetId, snitcherCard, targetCard, sVal, tVal }
      SIMPLE_SNITCH_SUCCESS     { snitcherId, targetId }
      SIMPLE_SNITCH_FAILURE     { snitcherId, targetId }
+     SIMPLE_SNITCH_STOPPED     { playerId }
      FAIL_BLAME_ROUND_DONE     {}
    ===================================================== */
 'use strict';
@@ -305,8 +309,8 @@ function _resolveFailVotes(state, events) {
   }
 }
 
-// The blamed player isn't given the Fail yet — they get one chance to
-// Snitch their way out of it first.
+// The blamed player isn't given the Fail yet — they can try to Snitch
+// their way out of it first.
 function _startSnitchPhase(state, events, blamedId) {
   const blamed = state.players[blamedId];
   events.push(evt('FAIL_BLAMED', { blamedId }));
@@ -316,19 +320,20 @@ function _startSnitchPhase(state, events, blamedId) {
     playerId: blamedId,
   });
 
-  state.simpleSnitchCurrentId = blamedId;
-  state.phase                 = 'SIMPLE_SNITCH';
-  state.activePlayerId        = blamedId;
+  state.simpleSnitchedThisRound = [blamedId];
+  state.phase = 'SIMPLE_SNITCH';
+  _setSnitchCurrent(state, events, blamedId);
 }
 
 // ── simpleSnitchTarget ─────────────────────────────────────
-// The blamed player names one other player. If the named player's top
-// Party card is HIGHER than the blamed player's own, the Snitch succeeds:
-// the Fail is dropped, but the blamed player still banks a Slacker card.
-// Otherwise (equal, lower, or the blamed player already holds the single
-// highest card) the Snitch fails: they keep the Fail AND bank a Slacker
-// card. The named player faces no consequence either way. Every active
-// player already lost their top Party card when the fail vote started.
+// The current holder names another player. If the named player's top
+// Party card is HIGHER than the current holder's, the Snitch succeeds:
+// liability transfers to the named player, who must now Snitch in turn
+// (the chain keeps climbing). Otherwise (equal, lower, or the current
+// holder already holds the single highest card) the Snitch fails: they
+// keep the Fail. Either way, whoever just attempted the Snitch banks a
+// Slacker card (-3 points). Every active player already lost their top
+// Party card when the fail vote started.
 export function simpleSnitchTarget(state, snitcherId, targetId) {
   if (state.phase !== 'SIMPLE_SNITCH')
     throw new Error(`simpleSnitchTarget called in phase ${state.phase}`);
@@ -336,6 +341,8 @@ export function simpleSnitchTarget(state, snitcherId, targetId) {
     throw new Error(`Not ${snitcherId}'s snitch turn`);
   if (targetId === snitcherId)
     throw new Error('Cannot snitch on yourself');
+  if ((state.simpleSnitchedThisRound || []).includes(targetId))
+    throw new Error(`${state.players[targetId]?.name ?? targetId} has already been named this round`);
 
   const events   = [];
   const snitcher = state.players[snitcherId];
@@ -349,6 +356,8 @@ export function simpleSnitchTarget(state, snitcherId, targetId) {
   const sVal = _topPartyValue(snitcher);
   const tVal = _topPartyValue(target);
 
+  state.simpleSnitchedThisRound.push(targetId);
+
   events.push(evt('SIMPLE_SNITCH_REVEALED', {
     snitcherId, targetId, snitcherCard: snitcherTop, targetCard: targetTop, sVal, tVal,
   }));
@@ -360,9 +369,10 @@ export function simpleSnitchTarget(state, snitcherId, targetId) {
     addLog(state, {
       type:     'snitch',
       text:     `${snitcher.name} snitches on ${target.name} — ${target.name}(${tVal}) > ${snitcher.name}(${sVal}). ` +
-                `Snitch succeeds! ${snitcher.name} drops the Fail but banks a Slacker card (-3 points).`,
+                `Snitch succeeds! ${snitcher.name} banks a Slacker card (-3 points) — ${target.name} must now Snitch to avoid the Fail!`,
       playerId: snitcherId,
     });
+    _setSnitchCurrent(state, events, targetId);
   } else {
     events.push(...applyIndividualFail(state, snitcherId));
     events.push(evt('SIMPLE_SNITCH_FAILURE', { snitcherId, targetId }));
@@ -372,13 +382,43 @@ export function simpleSnitchTarget(state, snitcherId, targetId) {
                 `Snitch fails! ${snitcher.name} keeps the Fail AND banks a Slacker card (-3 points).`,
       playerId: snitcherId,
     });
+    _endSnitchPhase(state, events);
   }
 
-  state.simpleSnitchCurrentId = null;
+  return events;
+}
+
+// Players still eligible to be named by `currentId` in this chain.
+function _eligibleSnitchTargets(state, currentId) {
+  const already = state.simpleSnitchedThisRound || [];
+  return activePlayers(state).filter(id => id !== currentId && !already.includes(id));
+}
+
+// Sets who must Snitch next — or, if nobody is left to name, ends the
+// chain with that player keeping the Fail (a Fail is always handed out).
+function _setSnitchCurrent(state, events, playerId) {
+  if (_eligibleSnitchTargets(state, playerId).length === 0) {
+    state.slackerTokens[playerId] = (state.slackerTokens[playerId] ?? 0) + 1;
+    events.push(...applyIndividualFail(state, playerId));
+    events.push(evt('SIMPLE_SNITCH_STOPPED', { playerId }));
+    addLog(state, {
+      type:     'snitch',
+      text:     `${state.players[playerId].name} has no one left to snitch on — keeps the Fail AND banks a Slacker card (-3 points)!`,
+      playerId,
+    });
+    _endSnitchPhase(state, events);
+    return;
+  }
+  state.simpleSnitchCurrentId = playerId;
+  state.activePlayerId        = playerId;
+  events.push(evt('SIMPLE_SNITCH_TURN', { snitcherId: playerId }));
+}
+
+function _endSnitchPhase(state, events) {
+  state.simpleSnitchCurrentId   = null;
+  state.simpleSnitchedThisRound = [];
   state.phase = 'BREAK';
   applyEndOfSemesterDiscards(state, events);
   events.push(evt('FAIL_BLAME_ROUND_DONE', {}));
   addLog(state, { type: 'system', text: 'Round resolved — everyone discards their top Party card.' });
-
-  return events;
 }

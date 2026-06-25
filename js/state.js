@@ -303,13 +303,14 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
     evalAccusedId:      null,
     evalTiedPlayers:    [],
 
-    // Simple mode — "Who's to Blame?" fail vote + one-shot Snitch
+    // Simple mode — "Who's to Blame?" fail vote + Snitch chain
     // (replaces Group Evaluation whenever the project FAILS)
     roundFailVotes:           {}, // {voterId: targetId} current round
     failVoteVotersRemaining:  [],
     failRoundCounts:          {}, // {targetId: count} tally for current round
     failTiedPlayers:          [],
     simpleSnitchCurrentId:    null,
+    simpleSnitchedThisRound:  [],
 
     extraCreditAwardedThisRound: false,
 

@@ -63,7 +63,7 @@ const PHASE_LABEL = {
   GROUP_EVAL_LEADER_TIE: 'Tie Break',
   SIMPLE_BLAME_VOTE:     "Who's to Blame?",
   SIMPLE_BLAME_LEADER_TIE: 'Tie Break',
-  SIMPLE_SNITCH:         'Snitch',
+  SIMPLE_SNITCH:         'Snitch Chain',
   GAMEOVER:              'Game Over',
 };
 

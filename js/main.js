@@ -1071,8 +1071,9 @@ function _openSimpleSnitchOverlay() {
   if (_state.simpleSnitchCurrentId !== _humanId) return;
   if (document.getElementById('simple-snitch-overlay')) return;
 
-  const targets = activePlayers(_state).filter(id => id !== _humanId);
-  if (targets.length === 0) return;   // shouldn't happen with >=2 active players
+  const already = _state.simpleSnitchedThisRound || [];
+  const targets = activePlayers(_state).filter(id => id !== _humanId && !already.includes(id));
+  if (targets.length === 0) return;   // engine auto-resolves this case
 
   const overlay = document.createElement('div');
   overlay.id = 'simple-snitch-overlay';
@@ -1082,8 +1083,9 @@ function _openSimpleSnitchOverlay() {
       <div class="overlay-title">You Must Snitch</div>
       <div class="slacker-vote-intro">
         Name a player to reveal their top Party Pile card. If it's higher
-        than yours, you drop the Fail (but still bank a Slacker card).
-        Otherwise you keep the Fail AND bank a Slacker card.
+        than yours, the Fail passes to them (they must Snitch next) — but
+        you still bank a Slacker card. Otherwise you keep the Fail AND
+        bank a Slacker card.
       </div>
       <div class="slacker-vote-grid" id="ss-grid"></div>
     </div>`;

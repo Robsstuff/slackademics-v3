@@ -175,11 +175,12 @@ function _actionFailLeaderTieBreak(state, playerId, player) {
 // ─────────────────────────────────────────────────────────
 
 function _actionSimpleSnitch(state, playerId, player) {
-  const others = activePlayers(state).filter(id => id !== playerId);
-  if (others.length === 0) return null;   // shouldn't happen with >=2 active players
+  const already = state.simpleSnitchedThisRound || [];
+  const others  = activePlayers(state).filter(id => id !== playerId && !already.includes(id));
+  if (others.length === 0) return null;   // engine auto-resolves this case
 
-  // One shot at a Snitch — name whoever holds the highest top Party card
-  // to maximise the chance their card beats ours.
+  // Name whoever holds the highest top Party card to maximise the chance
+  // their card beats ours and the chain keeps climbing away from us.
   let bestId  = others[0];
   let bestVal = -Infinity;
   for (const id of others) {

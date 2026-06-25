@@ -298,8 +298,10 @@ export function buildStepsFromEvents(events, state) {
       case 'FAIL_BLAME_TIE':
       case 'FAIL_BLAME_TIE_BROKEN':
       case 'FAIL_BLAMED':
+      case 'SIMPLE_SNITCH_TURN':
       case 'SIMPLE_SNITCH_SUCCESS':
       case 'SIMPLE_SNITCH_FAILURE':
+      case 'SIMPLE_SNITCH_STOPPED':
         steps.push(_stepSimpleFailMessage(ev, state));
         break;
 
@@ -1216,14 +1218,16 @@ function _stepFailBlameVotesRevealed(ev, state) {
   };
 }
 
-/* Generic narrative events for the Fail vote + one-shot Snitch */
+/* Generic narrative events for the Fail vote + Snitch chain */
 function _stepSimpleFailMessage(ev, state) {
   const bannerMap = {
     FAIL_BLAME_TIE:        'blame',
     FAIL_BLAME_TIE_BROKEN: 'blame',
     FAIL_BLAMED:           'fail',
+    SIMPLE_SNITCH_TURN:    'snitch',
     SIMPLE_SNITCH_SUCCESS: 'pass',
     SIMPLE_SNITCH_FAILURE: 'fail',
+    SIMPLE_SNITCH_STOPPED: 'fail',
   };
   return {
     label: ev.type,
@@ -1233,7 +1237,7 @@ function _stepSimpleFailMessage(ev, state) {
       renderPlayersBar(state);
       renderControlBar(state, _humanId);
       renderLog(state);
-      if (ev.type === 'SIMPLE_SNITCH_SUCCESS' || ev.type === 'SIMPLE_SNITCH_FAILURE') {
+      if (ev.type === 'SIMPLE_SNITCH_SUCCESS' || ev.type === 'SIMPLE_SNITCH_FAILURE' || ev.type === 'SIMPLE_SNITCH_STOPPED') {
         document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
       }
       const type     = bannerMap[ev.type] ?? 'blame';
