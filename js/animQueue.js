@@ -286,17 +286,46 @@ export function buildStepsFromEvents(events, state) {
 
       case 'EVAL_TIE_BROKEN':
       case 'EVAL_ACCUSED':
-      case 'EVAL_CONFIRMED_SLACKER':
-      case 'EVAL_APPEAL_OFFERED':
-      case 'EVAL_APPEAL_NAMED':
-      case 'EVAL_APPEAL_SUCCESS':
-      case 'EVAL_APPEAL_FAIL':
-      case 'SLACKER_CARDS_CAPPED':
+      case 'EVAL_NOT_SLACKER':
         steps.push(_stepEvalMessage(ev, state));
+        break;
+
+      case 'EVAL_CONFIRMED_SLACKER':
+        steps.push(_stepEvalConfirmedSlacker(ev, state));
         break;
 
       case 'EVAL_ROUND_DONE':
         steps.push(_stepEvalRoundDone(ev, state));
+        break;
+
+      // ── "Who's to Blame?" fail vote + Snitch chain (Simple) ──
+      case 'FAIL_BLAME_VOTE_START':
+        steps.push(_stepFailBlameVoteStart(ev, state));
+        break;
+
+      case 'FAIL_BLAME_VOTE_CAST':
+        steps.push(_stepReRender(ev, state));
+        break;
+
+      case 'FAIL_BLAME_VOTES_REVEALED':
+        steps.push(_stepFailBlameVotesRevealed(ev, state));
+        break;
+
+      case 'FAIL_BLAME_TIE':
+      case 'FAIL_BLAME_TIE_BROKEN':
+      case 'FAIL_BLAMED':
+      case 'SIMPLE_SNITCH_TURN':
+      case 'SIMPLE_SNITCH_FOUND_TOP':
+      case 'SIMPLE_SNITCH_STOPPED':
+        steps.push(_stepSimpleFailMessage(ev, state));
+        break;
+
+      case 'SIMPLE_SNITCH_REVEALED':
+        steps.push(_stepSimpleSnitchRevealed(ev, state));
+        break;
+
+      case 'FAIL_BLAME_ROUND_DONE':
+        steps.push(_stepFailBlameRoundDone(ev, state));
         break;
 
       // ── End game ──────────────────────────────────
@@ -1066,30 +1095,31 @@ function _stepGroupEvalStart(ev, state) {
       renderPlayersBar(state);
       renderControlBar(state, _humanId);
       renderLog(state);
-      const outcome = ev.isPassed ? 'The project PASSED.' : 'The project FAILED.';
-      _showBanner(ev.isPassed ? 'pass' : 'fail', `${outcome} Group Evaluation begins!`);
+      // GROUP_EVAL only ever runs after a PASS (without Extra Credit) now —
+      // a FAIL goes through the separate "Who's to Blame?" flow instead.
+      _showBanner('pass', 'The project PASSED. Group Evaluation begins!');
       setTimeout(() => _removeBanner(), 900);
     },
   };
 }
 
-/* EVAL_VOTES_REVEALED */
+/* EVAL_VOTES_REVEALED — blocking modal showing the vote tally */
 function _stepEvalVotesRevealed(ev, state) {
   return {
     label: 'EVAL_VOTES_REVEALED',
-    duration: 1200,
+    duration: 0,
     payload: { ev, state },
-    callback({ ev, state }) {
+    async callback({ ev, state }) {
       renderPlayersBar(state);
       renderControlBar(state, _humanId);
       renderLog(state);
-      const counts = ev.counts ?? {};
-      const names  = Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .map(([id, n]) => `${state.players[id]?.name ?? id}: ${n}`)
-        .join(', ');
-      _showBanner('blame', `Votes revealed! ${names || 'No votes'}`);
-      setTimeout(() => _removeBanner(), 1100);
+      await _showVoteResultsModal({
+        title:   'Group Evaluation — Votes Revealed',
+        intro:   'Each Slacker card placed this round:',
+        counts:  ev.counts,
+        state,
+        cardImg: './cards/slacker.jpg',
+      });
     },
   };
 }
@@ -1112,14 +1142,9 @@ function _stepEvalTie(ev, state) {
 /* Generic Group Eval message events */
 function _stepEvalMessage(ev, state) {
   const bannerMap = {
-    EVAL_TIE_BROKEN:      'blame',
-    EVAL_ACCUSED:         'blame',
-    EVAL_CONFIRMED_SLACKER:'fail',
-    EVAL_APPEAL_OFFERED:  'blame',
-    EVAL_APPEAL_NAMED:    'blame',
-    EVAL_APPEAL_SUCCESS:  'pass',
-    EVAL_APPEAL_FAIL:     'fail',
-    SLACKER_CARDS_CAPPED: 'pass',
+    EVAL_TIE_BROKEN: 'blame',
+    EVAL_ACCUSED:    'blame',
+    EVAL_NOT_SLACKER:'pass',
   };
   return {
     label: ev.type,
@@ -1139,6 +1164,23 @@ function _stepEvalMessage(ev, state) {
   };
 }
 
+/* EVAL_CONFIRMED_SLACKER — blocking popup + confetti */
+function _stepEvalConfirmedSlacker(ev, state) {
+  return {
+    label: 'EVAL_CONFIRMED_SLACKER',
+    duration: 0,
+    payload: { ev, state },
+    async callback({ ev, state }) {
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      const slacker = state.players[ev.slackerId];
+      _launchConfetti();
+      await _showSlackerFoundModal(slacker?.name ?? '?', ev.kept, ev.discarded);
+    },
+  };
+}
+
 /* EVAL_ROUND_DONE */
 function _stepEvalRoundDone(ev, state) {
   return {
@@ -1150,6 +1192,113 @@ function _stepEvalRoundDone(ev, state) {
       renderControlBar(state, _humanId);
       renderLog(state);
       _showBanner('pass', 'Group Evaluation complete.');
+      setTimeout(() => _removeBanner(), 700);
+    },
+  };
+}
+
+/* FAIL_BLAME_VOTE_START */
+function _stepFailBlameVoteStart(ev, state) {
+  return {
+    label: 'FAIL_BLAME_VOTE_START',
+    duration: 1000,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderGameHeader(state);
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      _showBanner('fail', `The project FAILED. Who's to Blame? voting begins!`);
+      setTimeout(() => _removeBanner(), 900);
+    },
+  };
+}
+
+/* FAIL_BLAME_VOTES_REVEALED — blocking modal showing the vote tally */
+function _stepFailBlameVotesRevealed(ev, state) {
+  return {
+    label: 'FAIL_BLAME_VOTES_REVEALED',
+    duration: 0,
+    payload: { ev, state },
+    async callback({ ev, state }) {
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      await _showVoteResultsModal({
+        title:   "Who's to Blame? — Votes Revealed",
+        intro:   'Each Fail vote cast this round:',
+        counts:  ev.counts,
+        state,
+        cardImg: './cards/other/Fail1.jpg',
+      });
+    },
+  };
+}
+
+/* Generic narrative events for the Fail/Snitch chain */
+function _stepSimpleFailMessage(ev, state) {
+  const bannerMap = {
+    FAIL_BLAME_TIE:          'blame',
+    FAIL_BLAME_TIE_BROKEN:   'blame',
+    FAIL_BLAMED:             'fail',
+    SIMPLE_SNITCH_TURN:      'snitch',
+    SIMPLE_SNITCH_FOUND_TOP: 'fail',
+    SIMPLE_SNITCH_STOPPED:   'blame',
+  };
+  return {
+    label: ev.type,
+    duration: 1100,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      if (ev.type === 'SIMPLE_SNITCH_FOUND_TOP' || ev.type === 'SIMPLE_SNITCH_STOPPED') {
+        document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      }
+      const type     = bannerMap[ev.type] ?? 'blame';
+      const logEntry = state.log[state.log.length - 1];
+      if (logEntry) {
+        _showBanner(type, logEntry.text);
+        setTimeout(() => _removeBanner(), 1000);
+      }
+    },
+  };
+}
+
+/* SIMPLE_SNITCH_REVEALED — show target's party card popping up */
+function _stepSimpleSnitchRevealed(ev, state) {
+  return {
+    label: 'SIMPLE_SNITCH_REVEALED',
+    duration: 800,
+    payload: { targetId: ev.targetId, card: ev.targetCard, state },
+    callback({ targetId, card, state }) {
+      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderLog(state);
+      const slot = document.getElementById('slot-' + targetId);
+      if (slot && card) {
+        const badge = document.createElement('div');
+        badge.className = 'snitch-card-badge anim-scale-in';
+        badge.textContent = card.value === 'copy' ? 'X2' : card.value;
+        badge.title = `Party card: ${card.name ?? card.value}`;
+        slot.appendChild(badge);
+      }
+    },
+  };
+}
+
+/* FAIL_BLAME_ROUND_DONE */
+function _stepFailBlameRoundDone(ev, state) {
+  return {
+    label: 'FAIL_BLAME_ROUND_DONE',
+    duration: 800,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      _showBanner('pass', 'Round resolved.');
       setTimeout(() => _removeBanner(), 700);
     },
   };
@@ -1256,6 +1405,77 @@ function _removeBanner() {
   old.classList.remove('anim-banner-in');
   old.classList.add('anim-banner-out');
   old.addEventListener('animationend', () => old.remove(), { once: true });
+}
+
+function _esc(str) {
+  return String(str ?? '').replace(/[<>&"]/g, c =>
+    ({ '<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;' }[c])
+  );
+}
+
+// ── Blocking vote-results modal — used by both the Group Evaluation
+// (Slacker vote) and "Who's to Blame?" (Fail vote) flows. Resolves the
+// returned Promise when the player clicks Continue, pausing the queue.
+function _showVoteResultsModal({ title, intro, counts, state, cardImg }) {
+  return new Promise(resolve => {
+    document.getElementById('vote-results-overlay')?.remove();
+
+    const entries = Object.entries(counts || {})
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1]);
+
+    const rows = entries.length > 0
+      ? entries.map(([id, n]) => {
+          const p = state.players[id];
+          return `<div class="vote-result-row">
+            <img src="${cardImg}" alt="" class="vote-result-img"/>
+            <div class="vote-result-name">${_esc(p?.name ?? id)}</div>
+            <div class="vote-result-count">${n} vote${n !== 1 ? 's' : ''}</div>
+          </div>`;
+        }).join('')
+      : `<div class="vote-result-row"><div class="vote-result-name">No votes cast</div></div>`;
+
+    const overlay = document.createElement('div');
+    overlay.id        = 'vote-results-overlay';
+    overlay.className = 'overlay-screen active';
+    overlay.innerHTML = `
+      <div class="overlay-sheet vote-results-sheet">
+        <div class="overlay-title">${_esc(title)}</div>
+        ${intro ? `<div class="overlay-body">${_esc(intro)}</div>` : ''}
+        <div class="vote-results-list">${rows}</div>
+        <button class="btn-p" id="vr-continue">Continue</button>
+      </div>`;
+
+    overlay.querySelector('#vr-continue').addEventListener('click', () => {
+      overlay.remove();
+      resolve();
+    });
+    document.body.appendChild(overlay);
+  });
+}
+
+// ── Blocking "X is the Slacker!" popup, shown alongside confetti.
+function _showSlackerFoundModal(name, kept, discarded) {
+  return new Promise(resolve => {
+    document.getElementById('slacker-found-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id        = 'slacker-found-overlay';
+    overlay.className = 'overlay-screen active';
+    overlay.innerHTML = `
+      <div class="overlay-sheet slacker-found-sheet">
+        <img src="./cards/slacker.jpg" alt="Slacker" class="slacker-found-img"/>
+        <div class="slacker-found-title">${_esc(name)} IS THE SLACKER!</div>
+        <div class="overlay-body">Keeps ${kept} Slacker card${kept !== 1 ? 's' : ''}${discarded > 0 ? ` (${discarded} discarded — capped by their Party card)` : ''}.</div>
+        <button class="btn-p" id="sf-continue">Continue</button>
+      </div>`;
+
+    overlay.querySelector('#sf-continue').addEventListener('click', () => {
+      overlay.remove();
+      resolve();
+    });
+    document.body.appendChild(overlay);
+  });
 }
 
 // ─────────────────────────────────────────────────────

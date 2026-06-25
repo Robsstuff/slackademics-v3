@@ -19,6 +19,12 @@
      { type:'NEXT_SEMESTER' }
      { type:'DRAW_PAIR',        key }
      { type:'VIEW_SCORES' }
+     // Simple mode
+     { type:'SLACKER_VOTE',        targetId }
+     { type:'LEADER_TIE_BREAK',    fromId, toId }
+     { type:'FAIL_BLAME_VOTE',     targetId }
+     { type:'FAIL_LEADER_TIE_BREAK', fromId, toId }
+     { type:'SIMPLE_SNITCH_TARGET', targetId }
    ===================================================== */
 'use strict';
 
@@ -67,9 +73,15 @@ export function getAIAction(state, playerId) {
     case 'GROUP_EVAL_LEADER_TIE':
       if (state.projectLeaderId !== playerId) return null;
       return _actionLeaderTieBreak(state, playerId, player);
-    case 'GROUP_EVAL_APPEAL':
-      if (state.evalAccusedId !== playerId) return null;
-      return _actionAppeal(state, playerId, player);
+    case 'SIMPLE_BLAME_VOTE':
+      if (!state.failVoteVotersRemaining?.includes(playerId)) return null;
+      return _actionFailBlameVote(state, playerId, player);
+    case 'SIMPLE_BLAME_LEADER_TIE':
+      if (state.projectLeaderId !== playerId) return null;
+      return _actionFailLeaderTieBreak(state, playerId, player);
+    case 'SIMPLE_SNITCH':
+      if (state.simpleSnitchCurrentId !== playerId) return null;
+      return _actionSimpleSnitch(state, playerId, player);
     default:           return null;
   }
 }
@@ -111,34 +123,77 @@ function _actionSlackerVote(state, playerId, player) {
 function _actionLeaderTieBreak(state, playerId, player) {
   const tied = state.evalTiedPlayers ?? [];
   if (tied.length === 0) return null;
-  // Pick randomly among tied players
-  const chosen = tied[Math.floor(Math.random() * tied.length)];
-  return { type: 'LEADER_TIE_BREAK', chosenId: chosen };
+  // Pick randomly among tied players to receive the moved card
+  const toId   = tied[Math.floor(Math.random() * tied.length)];
+  const fromId = tied.find(id => id !== toId) ?? toId;
+  return { type: 'LEADER_TIE_BREAK', fromId, toId };
 }
 
-function _actionAppeal(state, playerId, player) {
-  // Find all eligible appeal targets (have round slacker cards, not self)
-  const active = activePlayers(state);
-  const eligible = active.filter(id =>
-    id !== playerId && (state.evalRoundCounts[id] ?? 0) > 0
-  );
-  if (eligible.length === 0) return { type: 'SKIP_APPEAL' };
+// ─────────────────────────────────────────────────────────
+//  SIMPLE MODE — "Who's to Blame?" fail vote AI
+// ─────────────────────────────────────────────────────────
 
-  // The AI can't see hidden party pile cards any more than a human can —
-  // it has to guess. 60% pure random guess; 40% informed guess using
-  // suspicion built up from previously revealed project-pile cards.
-  if (Math.random() < 0.60) {
-    const targetId = eligible[Math.floor(Math.random() * eligible.length)];
-    return { type: 'DO_APPEAL', targetId };
+function _actionFailBlameVote(state, playerId, player) {
+  const active = activePlayers(state).filter(id => id !== playerId);
+  if (active.length === 0) return null;
+
+  const roll = Math.random();
+
+  // 35% random
+  if (roll < 0.35) {
+    return { type: 'FAIL_BLAME_VOTE', targetId: active[Math.floor(Math.random() * active.length)] };
   }
 
   _updateSuspicion(state, playerId, player);
-  const best = eligible.reduce((m, id) => {
-    const score = (player.suspicionScores[id] ?? 0) + Math.random() * 2;
-    return score > m.score ? { id, score } : m;
-  }, { id: eligible[0], score: -Infinity });
+  const scores = active.map(id => ({
+    id,
+    score: (player.suspicionScores[id] ?? 0) + Math.random() * 2,
+  }));
+  scores.sort((a, b) => b.score - a.score);
 
-  return { type: 'DO_APPEAL', targetId: best.id };
+  // 30% target the player with the most party pile cards
+  if (roll > 0.65) {
+    const byPile = [...active].sort((a, b) =>
+      (state.players[b].partyPile.length) - (state.players[a].partyPile.length)
+    );
+    return { type: 'FAIL_BLAME_VOTE', targetId: byPile[0] };
+  }
+
+  return { type: 'FAIL_BLAME_VOTE', targetId: scores[0].id };
+}
+
+function _actionFailLeaderTieBreak(state, playerId, player) {
+  const tied = state.failTiedPlayers ?? [];
+  if (tied.length === 0) return null;
+  const toId   = tied[Math.floor(Math.random() * tied.length)];
+  const fromId = tied.find(id => id !== toId) ?? toId;
+  return { type: 'FAIL_LEADER_TIE_BREAK', fromId, toId };
+}
+
+// ─────────────────────────────────────────────────────────
+//  SIMPLE MODE — Snitch chain AI
+// ─────────────────────────────────────────────────────────
+
+function _actionSimpleSnitch(state, playerId, player) {
+  const already = state.simpleSnitchedThisRound || [];
+  const others  = activePlayers(state).filter(id => id !== playerId && !already.includes(id));
+  if (others.length === 0) return null;   // engine auto-resolves this case
+
+  const myTop = player.partyPile[player.partyPile.length - 1];
+  const myVal = myTop ? (myTop.type === 'copy' ? 9 : myTop.value) : -1;
+
+  // Target whoever holds the highest top Party card — that's both the
+  // best chance of extending the chain and the best chance of finding
+  // the true top (which also earns a bonus Slacker card).
+  let bestId  = others[0];
+  let bestVal = -Infinity;
+  for (const id of others) {
+    const top = state.players[id].partyPile[state.players[id].partyPile.length - 1];
+    const val = top ? (top.type === 'copy' ? 9 : top.value) : -1;
+    if (val > bestVal) { bestVal = val; bestId = id; }
+  }
+
+  return { type: 'SIMPLE_SNITCH_TARGET', targetId: bestId };
 }
 
 // ─────────────────────────────────────────────────────────

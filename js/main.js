@@ -12,7 +12,8 @@ import {
   getValidActions, activePlayers, getAvailablePairKeys,
 }                                     from './engine.js';
 import {
-  castSlackerVote, leaderBreakTie, doAppeal, skipAppeal, partyCardValue,
+  castSlackerVote, leaderBreakTie,
+  castFailBlameVote, leaderBreakFailTie, simpleSnitchTarget,
 }                                     from './simple_engine.js';
 import { getAIAction }                from './ai.js';
 import {
@@ -166,7 +167,7 @@ function _advance() {
         const action = getAIAction(_state, _state.projectLeaderId);
         if (action?.type === 'LEADER_TIE_BREAK') {
           setTimeout(() => {
-            try { _dispatchEvents(leaderBreakTie(_state, action.chosenId)); }
+            try { _dispatchEvents(leaderBreakTie(_state, action.fromId, action.toId)); }
             catch (e) { console.warn(e); }
           }, _delay(AI_THINK_DELAY));
         }
@@ -174,21 +175,48 @@ function _advance() {
       return;
     }
 
-    case 'GROUP_EVAL_APPEAL': {
-      const accused = _state.evalAccusedId ? _state.players[_state.evalAccusedId] : null;
-      if (accused?.isHuman) {
-        setTimeout(() => _openAppealOverlay(), _delay(400));
-      } else if (accused) {
-        const action = getAIAction(_state, _state.evalAccusedId);
-        setTimeout(() => {
-          try {
-            if (action?.type === 'DO_APPEAL') {
-              _dispatchEvents(doAppeal(_state, _state.evalAccusedId, action.targetId));
-            } else {
-              _dispatchEvents(skipAppeal(_state, _state.evalAccusedId));
-            }
-          } catch (e) { console.warn(e); }
-        }, _delay(AI_THINK_DELAY));
+    case 'SIMPLE_BLAME_VOTE': {
+      // Show "who's to blame" vote overlay for human; auto-vote for AIs
+      const humanPlayer = _humanId ? _state.players[_humanId] : null;
+      const humanMustVote = humanPlayer && !humanPlayer.isExpelled &&
+        _state.failVoteVotersRemaining?.includes(_humanId);
+      if (humanMustVote) {
+        setTimeout(() => _openFailBlameVoteOverlay(), _delay(300));
+      } else {
+        setTimeout(() => _runAIFailBlameVotes(), _delay(AI_THINK_DELAY));
+      }
+      return;
+    }
+
+    case 'SIMPLE_BLAME_LEADER_TIE': {
+      const leader = _state.players[_state.projectLeaderId];
+      if (leader?.isHuman) {
+        setTimeout(() => _openFailTieBreakOverlay(), _delay(300));
+      } else {
+        const action = getAIAction(_state, _state.projectLeaderId);
+        if (action?.type === 'FAIL_LEADER_TIE_BREAK') {
+          setTimeout(() => {
+            try { _dispatchEvents(leaderBreakFailTie(_state, action.fromId, action.toId)); }
+            catch (e) { console.warn(e); }
+          }, _delay(AI_THINK_DELAY));
+        }
+      }
+      return;
+    }
+
+    case 'SIMPLE_SNITCH': {
+      const snitcher = _state.simpleSnitchCurrentId ? _state.players[_state.simpleSnitchCurrentId] : null;
+      if (snitcher?.isHuman) {
+        setTimeout(() => _openSimpleSnitchOverlay(), _delay(400));
+      } else if (snitcher) {
+        const action = getAIAction(_state, _state.simpleSnitchCurrentId);
+        if (action?.type === 'SIMPLE_SNITCH_TARGET') {
+          setTimeout(() => {
+            try {
+              _dispatchEvents(simpleSnitchTarget(_state, _state.simpleSnitchCurrentId, action.targetId));
+            } catch (e) { console.warn(e); }
+          }, _delay(AI_THINK_DELAY));
+        }
       }
       return;
     }
@@ -217,8 +245,7 @@ function _afterQueueDrain() {
     setTimeout(() => _openBlameVoteOverlay(), _delay(150));
   }
 
-  // GROUP_EVAL: human needs to vote → overlay fires via _advance()
-  // GROUP_EVAL_APPEAL: overlay fires via _advance()
+  // GROUP_EVAL / SIMPLE_BLAME_VOTE / SIMPLE_SNITCH: overlays fire via _advance()
 
   _advance();
 }
@@ -356,15 +383,30 @@ async function _runAITurn(playerId) {
       }
 
       case 'LEADER_TIE_BREAK':
-        events = leaderBreakTie(_state, action.chosenId);
+        events = leaderBreakTie(_state, action.fromId, action.toId);
         break;
 
-      case 'DO_APPEAL':
-        events = doAppeal(_state, playerId, action.targetId);
+      case 'FAIL_BLAME_VOTE': {
+        const voteEvents = castFailBlameVote(_state, playerId, action.targetId);
+        while (_state.phase === 'SIMPLE_BLAME_VOTE' && _state.failVoteVotersRemaining?.length > 0) {
+          const nextId = _state.failVoteVotersRemaining[0];
+          const nextP  = _state.players[nextId];
+          if (!nextP || nextP.isHuman) break;
+          const nextAction = getAIAction(_state, nextId);
+          if (nextAction?.type === 'FAIL_BLAME_VOTE') {
+            voteEvents.push(...castFailBlameVote(_state, nextId, nextAction.targetId));
+          } else { break; }
+        }
+        events = voteEvents;
+        break;
+      }
+
+      case 'FAIL_LEADER_TIE_BREAK':
+        events = leaderBreakFailTie(_state, action.fromId, action.toId);
         break;
 
-      case 'SKIP_APPEAL':
-        events = skipAppeal(_state, playerId);
+      case 'SIMPLE_SNITCH_TARGET':
+        events = simpleSnitchTarget(_state, playerId, action.targetId);
         break;
     }
   } catch (err) {
@@ -394,6 +436,24 @@ function _runAISlackerVotes() {
     if (action?.type === 'SLACKER_VOTE') {
       try {
         events.push(...castSlackerVote(_state, nextId, action.targetId));
+      } catch (e) { console.warn(e); break; }
+    } else { break; }
+  }
+  if (events.length > 0) _dispatchEvents(events);
+}
+
+// Run all remaining AI "who's to blame" votes (called after human votes or is expelled)
+function _runAIFailBlameVotes() {
+  if (!_state || _state.phase !== 'SIMPLE_BLAME_VOTE') return;
+  const events = [];
+  while (_state.phase === 'SIMPLE_BLAME_VOTE' && _state.failVoteVotersRemaining?.length > 0) {
+    const nextId = _state.failVoteVotersRemaining[0];
+    const nextP  = _state.players[nextId];
+    if (!nextP || nextP.isHuman) break;
+    const action = getAIAction(_state, nextId);
+    if (action?.type === 'FAIL_BLAME_VOTE') {
+      try {
+        events.push(...castFailBlameVote(_state, nextId, action.targetId));
       } catch (e) { console.warn(e); break; }
     } else { break; }
   }
@@ -823,21 +883,16 @@ function _openSlackerVoteOverlay() {
   overlay.id = 'slacker-vote-overlay';
   overlay.className = 'overlay-screen active';
 
-  const resultLabel = _state.evalIsOnFail
-    ? 'The project FAILED — who is the Slacker?'
-    : 'The project passed — who slacked off?';
-
   overlay.innerHTML = `
     <div class="overlay-sheet slacker-vote-sheet">
       <div class="overlay-title">Group Evaluation</div>
-      <div class="slacker-vote-intro">${_esc(resultLabel)}</div>
+      <div class="slacker-vote-intro">The project passed — who slacked off?</div>
       <div class="slacker-vote-grid" id="sv-grid"></div>
     </div>`;
 
   const grid = overlay.querySelector('#sv-grid');
   for (const pid of active) {
     const p   = _state.players[pid];
-    const pv  = partyCardValue(p.semesterProjectCard);
     const btn = document.createElement('div');
     btn.className    = 'slacker-vote-card';
     btn.dataset.pid  = pid;
@@ -902,7 +957,9 @@ function _openTieBreakOverlay() {
 
     const pick = () => {
       overlay.remove();
-      try { _dispatchEvents(leaderBreakTie(_state, pid)); }
+      const toId   = pid;
+      const fromId = tied.find(id => id !== toId) ?? toId;
+      try { _dispatchEvents(leaderBreakTie(_state, fromId, toId)); }
       catch (e) { console.warn(e); }
     };
     btn.addEventListener('click', pick);
@@ -912,86 +969,143 @@ function _openTieBreakOverlay() {
   document.body.appendChild(overlay);
 }
 
-function _cardImg(card) {
-  if (!card) return './cards/Card Back Regular.jpg';
-  if (card.type === 'copy') return './cards/effort/Copy.jpg';
-  const imgs = {
-    0:'0.jpg', 1:'1.jpg', 2:'2.jpg', 3:'3.jpg',
-    4:'4.jpg', 5:'5.jpg', 6:'6.jpg', 7:'7.jpg', 8:'8.jpg',
-  };
-  return `./cards/effort/${imgs[card.value] ?? '0.jpg'}`;
-}
+// ── "Who's to Blame?" vote overlay (after a FAIL) ─────────
+function _openFailBlameVoteOverlay() {
+  if (!_state || _state.phase !== 'SIMPLE_BLAME_VOTE') return;
+  if (document.getElementById('fail-blame-vote-overlay')) return;
 
-function _openAppealOverlay() {
-  if (!_state || _state.phase !== 'GROUP_EVAL_APPEAL') return;
-  if (document.getElementById('appeal-overlay')) return;
-
-  const accusedId = _state.evalAccusedId;
-  if (!accusedId) return;
-  const accused     = _state.players[accusedId];
-  const myCard      = accused.semesterProjectCard;
-  const myCardName  = myCard ? (myCard.type === 'copy' ? 'X2 Copy' : `${myCard.name ?? myCard.value}`) : '?';
-  const myPV        = partyCardValue(myCard);
-
-  // Eligible appeal targets: active, not self, have round slacker cards.
-  // Targets' actual party pile cards/values are hidden info — same as in a
-  // physical game, players can only infer values from the project pile
-  // themselves. The overlay shows names only, no opponent card data.
-  const active   = activePlayers(_state);
-  const eligible = active.filter(id => id !== accusedId && (_state.evalRoundCounts[id] ?? 0) > 0);
-
+  const active  = activePlayers(_state).filter(id => id !== _humanId);
   const overlay = document.createElement('div');
-  overlay.id = 'appeal-overlay';
+  overlay.id = 'fail-blame-vote-overlay';
   overlay.className = 'overlay-screen active';
 
   overlay.innerHTML = `
     <div class="overlay-sheet slacker-vote-sheet">
-      <div class="overlay-title">Appeal</div>
-      <div class="appeal-accused-row">
-        <img src="${_cardImg(myCard)}" alt="${_esc(myCardName)}" class="appeal-card-img"/>
-        <div class="appeal-accused-info">
-          <div class="appeal-accused-name">${_esc(accused.name)}</div>
-          <div class="appeal-card-label">You played: <strong>${_esc(myCardName)}</strong></div>
-          <div class="appeal-card-pv">Your Party value: <strong>${myPV}</strong></div>
-        </div>
-      </div>
-      <div class="slacker-vote-intro">
-        Your party card wasn't the highest — name someone you think is the real Slacker
-        (work it out from the project pile), or skip the appeal.
-      </div>
-      <div class="slacker-vote-grid" id="ap-grid"></div>
-      <button class="btn-t" id="ap-skip" style="margin-top:14px;">Skip Appeal (accept verdict)</button>
+      <div class="overlay-title">Who Is To Blame?</div>
+      <div class="slacker-vote-intro">The project FAILED — vote on who's to blame.</div>
+      <div class="slacker-vote-grid" id="fbv-grid"></div>
     </div>`;
 
-  const grid = overlay.querySelector('#ap-grid');
-  for (const pid of eligible) {
-    const p         = _state.players[pid];
-    const cardCount = _state.evalRoundCounts[pid] ?? 0;
+  const grid = overlay.querySelector('#fbv-grid');
+  for (const pid of active) {
+    const p   = _state.players[pid];
+    const btn = document.createElement('div');
+    btn.className   = 'slacker-vote-card';
+    btn.dataset.pid = pid;
+    btn.setAttribute('role', 'button');
+    btn.setAttribute('tabindex', '0');
+    btn.innerHTML = `
+      <img src="./cards/other/Fail1.jpg" alt="Fail card" class="slacker-vote-img"/>
+      <div class="slacker-vote-name">${_esc(p.name)}</div>
+      <div class="slacker-vote-stats">${totalFails(p)} fail${totalFails(p) !== 1 ? 's' : ''}</div>`;
 
+    const vote = () => {
+      overlay.remove();
+      try {
+        const events = castFailBlameVote(_state, _humanId, pid);
+        while (_state.phase === 'SIMPLE_BLAME_VOTE' && _state.failVoteVotersRemaining?.length > 0) {
+          const nextId = _state.failVoteVotersRemaining[0];
+          const nextP  = _state.players[nextId];
+          if (!nextP || nextP.isHuman) break;
+          const action = getAIAction(_state, nextId);
+          if (action?.type === 'FAIL_BLAME_VOTE') {
+            events.push(...castFailBlameVote(_state, nextId, action.targetId));
+          } else { break; }
+        }
+        _dispatchEvents(events);
+      } catch (e) { console.warn(e); }
+    };
+    btn.addEventListener('click', vote);
+    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') vote(); });
+    grid.appendChild(btn);
+  }
+
+  document.body.appendChild(overlay);
+}
+
+// ── Leader breaks a "who's to blame" tie ──────────────────
+function _openFailTieBreakOverlay() {
+  if (!_state || _state.phase !== 'SIMPLE_BLAME_LEADER_TIE') return;
+  if (document.getElementById('fail-tie-break-overlay')) return;
+
+  const tied = _state.failTiedPlayers ?? [];
+  const overlay = document.createElement('div');
+  overlay.id = 'fail-tie-break-overlay';
+  overlay.className = 'overlay-screen active';
+  overlay.innerHTML = `
+    <div class="overlay-sheet slacker-vote-sheet">
+      <div class="overlay-title">Tie Break</div>
+      <div class="slacker-vote-intro">Tied vote! As Project Leader, move one Fail card to:</div>
+      <div class="slacker-vote-grid" id="ftb-grid"></div>
+    </div>`;
+
+  const grid = overlay.querySelector('#ftb-grid');
+  for (const pid of tied) {
+    const p   = _state.players[pid];
     const btn = document.createElement('div');
     btn.className = 'slacker-vote-card';
     btn.setAttribute('role', 'button');
     btn.setAttribute('tabindex', '0');
     btn.innerHTML = `
+      <img src="./cards/other/Fail1.jpg" alt="Fail card" class="slacker-vote-img"/>
       <div class="slacker-vote-name">${_esc(p.name)}</div>
-      <div class="slacker-vote-stats">${cardCount} slacker card${cardCount !== 1 ? 's' : ''}</div>`;
+      <div class="slacker-vote-stats">${_state.failRoundCounts[pid] ?? 0} fail votes</div>`;
 
-    const appeal = () => {
+    const pick = () => {
       overlay.remove();
-      try { _dispatchEvents(doAppeal(_state, accusedId, pid)); }
+      const toId   = pid;
+      const fromId = tied.find(id => id !== toId) ?? toId;
+      try { _dispatchEvents(leaderBreakFailTie(_state, fromId, toId)); }
       catch (e) { console.warn(e); }
     };
-    btn.addEventListener('click', appeal);
-    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') appeal(); });
+    btn.addEventListener('click', pick);
+    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') pick(); });
     grid.appendChild(btn);
   }
+  document.body.appendChild(overlay);
+}
 
-  overlay.querySelector('#ap-skip').addEventListener('click', () => {
-    overlay.remove();
-    try { _dispatchEvents(skipAppeal(_state, accusedId)); }
-    catch (e) { console.warn(e); }
-  });
+// ── Snitch chain — current snitcher names a target ────────
+function _openSimpleSnitchOverlay() {
+  if (!_state || _state.phase !== 'SIMPLE_SNITCH') return;
+  if (_state.simpleSnitchCurrentId !== _humanId) return;
+  if (document.getElementById('simple-snitch-overlay')) return;
 
+  const already = _state.simpleSnitchedThisRound || [];
+  const targets = activePlayers(_state).filter(id => id !== _humanId && !already.includes(id));
+  if (targets.length === 0) return;   // engine auto-resolves this case
+
+  const overlay = document.createElement('div');
+  overlay.id = 'simple-snitch-overlay';
+  overlay.className = 'overlay-screen active';
+  overlay.innerHTML = `
+    <div class="overlay-sheet slacker-vote-sheet">
+      <div class="overlay-title">You Must Snitch</div>
+      <div class="slacker-vote-intro">
+        Name a player to reveal their top Party Pile card. If it's equal or
+        higher than yours, they take a Fail and must snitch onward.
+      </div>
+      <div class="slacker-vote-grid" id="ss-grid"></div>
+    </div>`;
+
+  const grid = overlay.querySelector('#ss-grid');
+  for (const pid of targets) {
+    const p   = _state.players[pid];
+    const btn = document.createElement('div');
+    btn.className = 'slacker-vote-card';
+    btn.setAttribute('role', 'button');
+    btn.setAttribute('tabindex', '0');
+    btn.innerHTML = `<div class="slacker-vote-name">${_esc(p.name)}</div>`;
+
+    const snitch = () => {
+      overlay.remove();
+      try { _dispatchEvents(simpleSnitchTarget(_state, _humanId, pid)); }
+      catch (e) { console.warn(e); }
+    };
+    btn.addEventListener('click', snitch);
+    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') snitch(); });
+    grid.appendChild(btn);
+  }
   document.body.appendChild(overlay);
 }
 

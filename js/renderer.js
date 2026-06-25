@@ -43,7 +43,7 @@ function _currentRoundSlackerCount(state, playerId) {
     }
     return live;
   }
-  if (state.phase === 'GROUP_EVAL_LEADER_TIE' || state.phase === 'GROUP_EVAL_APPEAL') {
+  if (state.phase === 'GROUP_EVAL_LEADER_TIE') {
     return state.evalRoundCounts?.[playerId] ?? 0;
   }
   return 0;
@@ -61,7 +61,9 @@ const PHASE_LABEL = {
   BREAK_DRAW:            'Draw New Pair',
   GROUP_EVAL:            'Group Evaluation',
   GROUP_EVAL_LEADER_TIE: 'Tie Break',
-  GROUP_EVAL_APPEAL:     'Appeal',
+  SIMPLE_BLAME_VOTE:     "Who's to Blame?",
+  SIMPLE_BLAME_LEADER_TIE: 'Tie Break',
+  SIMPLE_SNITCH:         'Snitch Chain',
   GAMEOVER:              'Game Over',
 };
 
@@ -76,7 +78,9 @@ const PHASE_SUB = {
   BREAK_DRAW:            'Drawing',
   GROUP_EVAL:            'Evaluating',
   GROUP_EVAL_LEADER_TIE: 'Tie Break',
-  GROUP_EVAL_APPEAL:     'Appeal',
+  SIMPLE_BLAME_VOTE:     'Voting',
+  SIMPLE_BLAME_LEADER_TIE: 'Tie Break',
+  SIMPLE_SNITCH:         'Snitching',
   GAMEOVER:              'Game Over',
 };
 
@@ -652,12 +656,35 @@ export function renderControlBar(state, humanId) {
       break;
     }
 
-    case 'GROUP_EVAL_APPEAL': {
-      const accusedId = state.evalAccusedId;
-      if (accusedId === humanId) {
-        show('btn-continue', true, 'Choose your appeal target…');
+    case 'SIMPLE_BLAME_VOTE': {
+      const waiting = state.failVoteVotersRemaining ?? [];
+      if (waiting.includes(humanId)) {
+        show('btn-continue', true, "Select who's to blame…");
+      } else if (waiting.length > 0) {
+        show('btn-continue', true, 'Waiting for other votes…');
       } else {
-        show('btn-continue', true, `Waiting for ${esc(state.players[accusedId]?.name ?? 'accused')}…`);
+        show('btn-continue', true, 'Counting votes…');
+      }
+      break;
+    }
+
+    case 'SIMPLE_BLAME_LEADER_TIE': {
+      if (isLeader) {
+        show('btn-continue', true, 'Choose who to blame (tie break)…');
+      } else {
+        show('btn-continue', true, `Waiting for ${esc(state.players[state.projectLeaderId]?.name ?? 'leader')}…`);
+      }
+      break;
+    }
+
+    case 'SIMPLE_SNITCH': {
+      const snitching = state.simpleSnitchCurrentId === humanId;
+      if (snitching) {
+        show('btn-continue', true, 'Choose who to snitch on…');
+      } else {
+        const snitcher = state.simpleSnitchCurrentId ? state.players[state.simpleSnitchCurrentId] : null;
+        show('btn-continue', true,
+          snitcher ? `Waiting for ${esc(snitcher.name)}…` : 'Waiting…');
       }
       break;
     }

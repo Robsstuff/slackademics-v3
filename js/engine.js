@@ -257,7 +257,7 @@ export function awardLeaderExtraCredit(state, { leaderId, recipientId }) {
 }
 
 // ── Mark top party pile card for end-of-semester discard ──
-function markTopPartyForDiscard(state, playerId) {
+export function markTopPartyForDiscard(state, playerId) {
   const pile = state.players[playerId].partyPile;
   if (pile.length === 0) return;
   const idx = pile.length - 1;
@@ -266,7 +266,7 @@ function markTopPartyForDiscard(state, playerId) {
 }
 
 // ── Apply all marked discards (called at end of semester) ─
-function applyEndOfSemesterDiscards(state, events) {
+export function applyEndOfSemesterDiscards(state, events) {
   for (const id of state.playerOrder) {
     const p = state.players[id];
     if (p.markedForDiscard.length === 0) continue;
@@ -302,10 +302,11 @@ function getVoters(state) {
   );
 }
 
-// ── Start Group Evaluation (Simple mode) ─────────────────
-function _startGroupEval(state, events, isPassed) {
+// ── Start Group Evaluation (Simple mode) ──────────────────
+// Only ever runs after a PASS without Extra Credit — a project FAIL
+// now goes through the separate "Who's to Blame?" flow below.
+function _startGroupEval(state, events) {
   const active = activePlayers(state);
-  state.evalIsOnFail       = !isPassed;
   state.roundSlackerVotes  = {};
   state.evalRoundCounts    = {};
   state.evalAccusedId      = null;
@@ -314,13 +315,33 @@ function _startGroupEval(state, events, isPassed) {
   state.phase              = 'GROUP_EVAL';
   state.activePlayerId     = active[0] ?? null;
   events.push(evt('GROUP_EVAL_START', {
-    isPassed,
     voters: active,
     projectLeaderId: state.projectLeaderId,
   }));
   addLog(state, {
     type: 'system',
     text: `Group Evaluation — each player places a Slacker card on who they think slacked off.`,
+  });
+}
+
+// ── Start "Who's to Blame?" fail vote (Simple mode) ───────
+// Runs whenever a project FAILS in simple mode. Replaces the old rule
+// where every active player took a Group Fail.
+function _startFailBlameVote(state, events) {
+  const active = activePlayers(state);
+  state.roundFailVotes          = {};
+  state.failRoundCounts         = {};
+  state.failTiedPlayers         = [];
+  state.failVoteVotersRemaining = [...active];
+  state.phase                   = 'SIMPLE_BLAME_VOTE';
+  state.activePlayerId          = active[0] ?? null;
+  events.push(evt('FAIL_BLAME_VOTE_START', {
+    voters: active,
+    projectLeaderId: state.projectLeaderId,
+  }));
+  addLog(state, {
+    type: 'fail',
+    text: `The project FAILED — who is to blame? Each player votes.`,
   });
 }
 
@@ -405,7 +426,7 @@ function resolveOutcome(state, events) {
         events.push(evt('GROUP_EVAL_SKIPPED', {}));
         state.phase = 'BREAK';
       } else {
-        _startGroupEval(state, events, true);
+        _startGroupEval(state, events);
       }
     } else {
       state.phase = 'BREAK';
@@ -419,29 +440,10 @@ function resolveOutcome(state, events) {
     });
     state.projectsFailed += 1;
 
-    // Group Fail — ALL active players
-    events.push(...applyGroupFail(state));
-
-    // Co-Lead fail Option A: +1 individual fail for each player whose Co-Lead
-    // is still in the project pile when the exam fails
-    if (state.coLeadFailMode === 'exam_fail') {
-      for (const card of state.projectPile) {
-        if (card.type === 'colead' && card.playerId) {
-          const p = state.players[card.playerId];
-          if (p) {
-            addLog(state, {
-              type: 'fail',
-              text: `${p.name} takes a Co-Lead penalty fail (exam failed).`,
-              playerId: card.playerId,
-            });
-            events.push(...applyIndividualFail(state, card.playerId));
-          }
-        }
-      }
-    }
-
     if (state.gameMode === 'simple') {
-      // Option: discard all party piles on fail
+      // Simple mode: no Group Fail to everyone any more — instead a
+      // "Who's to Blame?" vote + Snitch chain determines who takes fails.
+      // Option: discard all party piles on fail (independent toggle)
       if (state.failDiscardPartyPiles) {
         const active    = activePlayers(state);
         const discarded = {};
@@ -454,8 +456,29 @@ function resolveOutcome(state, events) {
         events.push(evt('PARTY_PILES_DISCARDED', { discarded }));
         addLog(state, { type: 'fail', text: 'Project failed — each player loses their top party pile card!' });
       }
-      _startGroupEval(state, events, false);
+      _startFailBlameVote(state, events);
     } else {
+      // Group Fail — ALL active players
+      events.push(...applyGroupFail(state));
+
+      // Co-Lead fail Option A: +1 individual fail for each player whose Co-Lead
+      // is still in the project pile when the exam fails
+      if (state.coLeadFailMode === 'exam_fail') {
+        for (const card of state.projectPile) {
+          if (card.type === 'colead' && card.playerId) {
+            const p = state.players[card.playerId];
+            if (p) {
+              addLog(state, {
+                type: 'fail',
+                text: `${p.name} takes a Co-Lead penalty fail (exam failed).`,
+                playerId: card.playerId,
+              });
+              events.push(...applyIndividualFail(state, card.playerId));
+            }
+          }
+        }
+      }
+
       // Move to BLAME
       state.phase          = 'BLAME';
       state.activePlayerId = state.projectLeaderId;
@@ -1106,6 +1129,13 @@ export function semesterBreak(state) {
   state.evalVotersRemaining        = [];
   state.evalTiedPlayers            = [];
   state.extraCreditAwardedThisRound = false;
+  // Reset "Who's to Blame?" fail-vote + Snitch chain state for new round
+  state.roundFailVotes             = {};
+  state.failRoundCounts            = {};
+  state.failVoteVotersRemaining    = [];
+  state.failTiedPlayers            = [];
+  state.simpleSnitchCurrentId      = null;
+  state.simpleSnitchedThisRound    = [];
 
   // Apply carry-over target penalty (Curve the Grade)
   state.targetBonus      = state.nextTargetPenalty || 0;
