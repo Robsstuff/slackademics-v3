@@ -680,7 +680,7 @@ export function renderControlBar(state, humanId) {
     case 'SIMPLE_SNITCH': {
       const snitching = state.simpleSnitchCurrentId === humanId;
       if (snitching) {
-        show('btn-continue', true, 'Choose who to snitch on…');
+        show('btn-continue', true, 'Snitch or pass…');
       } else {
         const snitcher = state.simpleSnitchCurrentId ? state.players[state.simpleSnitchCurrentId] : null;
         show('btn-continue', true,

@@ -325,13 +325,12 @@ function _startGroupEval(state, events) {
 }
 
 // ── Start "Who's to Blame?" fail vote (Simple mode) ───────
-// Runs whenever a project FAILS in simple mode. Replaces the old rule
-// where every active player took a Group Fail. Every active player now
-// unconditionally loses their top Party card at the end of this round,
-// regardless of who ends up blamed.
+// Runs whenever a project FAILS in simple mode, after every active
+// player has already taken a simultaneous Group Fail. This vote decides
+// who's on the hook for ONE additional Fail, which can be passed along
+// an optional Snitch chain.
 function _startFailBlameVote(state, events) {
   const active = activePlayers(state);
-  for (const id of active) markTopPartyForDiscard(state, id);
 
   state.roundFailVotes          = {};
   state.failRoundCounts         = {};
@@ -345,7 +344,7 @@ function _startFailBlameVote(state, events) {
   }));
   addLog(state, {
     type: 'fail',
-    text: `The project FAILED — who is to blame? Each player votes. Everyone will lose their top Party card at the end of the round.`,
+    text: `The project FAILED — everyone takes a Fail. Now vote on who's to blame for one extra Fail.`,
   });
 }
 
@@ -444,15 +443,15 @@ function resolveOutcome(state, events) {
     });
     state.projectsFailed += 1;
 
+    // Group Fail — ALL active players, simultaneously, in every mode
+    events.push(...applyGroupFail(state));
+
     if (state.gameMode === 'simple') {
-      // Simple mode: no Group Fail to everyone any more — instead a
-      // "Who's to Blame?" vote + one-shot Snitch decides who keeps the
-      // Fail. Everyone still loses their top Party card at round's end.
+      // Simple mode: on top of the simultaneous Group Fail, a
+      // "Who's to Blame?" vote + optional Snitch chain decides who also
+      // takes ONE extra Fail.
       _startFailBlameVote(state, events);
     } else {
-      // Group Fail — ALL active players
-      events.push(...applyGroupFail(state));
-
       // Co-Lead fail Option A: +1 individual fail for each player whose Co-Lead
       // is still in the project pile when the exam fails
       if (state.coLeadFailMode === 'exam_fail') {

@@ -13,7 +13,8 @@ import {
 }                                     from './engine.js';
 import {
   castSlackerVote, leaderBreakTie,
-  castFailBlameVote, leaderBreakFailTie, simpleSnitchTarget,
+  castFailBlameVote, leaderBreakFailTie, simpleSnitchTarget, simpleSnitchPass,
+  snitchOdds,
 }                                     from './simple_engine.js';
 import { getAIAction }                from './ai.js';
 import {
@@ -210,13 +211,15 @@ function _advance() {
         setTimeout(() => _openSimpleSnitchOverlay(), _delay(400));
       } else if (snitcher) {
         const action = getAIAction(_state, _state.simpleSnitchCurrentId);
-        if (action?.type === 'SIMPLE_SNITCH_TARGET') {
-          setTimeout(() => {
-            try {
+        setTimeout(() => {
+          try {
+            if (action?.type === 'SIMPLE_SNITCH_TARGET') {
               _dispatchEvents(simpleSnitchTarget(_state, _state.simpleSnitchCurrentId, action.targetId));
-            } catch (e) { console.warn(e); }
-          }, _delay(AI_THINK_DELAY));
-        }
+            } else {
+              _dispatchEvents(simpleSnitchPass(_state, _state.simpleSnitchCurrentId));
+            }
+          } catch (e) { console.warn(e); }
+        }, _delay(AI_THINK_DELAY));
       }
       return;
     }
@@ -407,6 +410,10 @@ async function _runAITurn(playerId) {
 
       case 'SIMPLE_SNITCH_TARGET':
         events = simpleSnitchTarget(_state, playerId, action.targetId);
+        break;
+
+      case 'SIMPLE_SNITCH_PASS':
+        events = simpleSnitchPass(_state, playerId);
         break;
     }
   } catch (err) {
@@ -1065,7 +1072,7 @@ function _openFailTieBreakOverlay() {
   document.body.appendChild(overlay);
 }
 
-// ── Snitch chain — current snitcher names a target ────────
+// ── Snitch chain — current holder may Snitch or pass ──────
 function _openSimpleSnitchOverlay() {
   if (!_state || _state.phase !== 'SIMPLE_SNITCH') return;
   if (_state.simpleSnitchCurrentId !== _humanId) return;
@@ -1075,19 +1082,29 @@ function _openSimpleSnitchOverlay() {
   const targets = activePlayers(_state).filter(id => id !== _humanId && !already.includes(id));
   if (targets.length === 0) return;   // engine auto-resolves this case
 
+  const { higherCount, pct } = snitchOdds(_state, _humanId);
+  const myCard = _state.players[_humanId].partyPile[_state.players[_humanId].partyPile.length - 1];
+  const myVal  = myCard ? (myCard.type === 'copy' ? 'X2 Copy' : myCard.value) : '?';
+
   const overlay = document.createElement('div');
   overlay.id = 'simple-snitch-overlay';
   overlay.className = 'overlay-screen active';
   overlay.innerHTML = `
     <div class="overlay-sheet slacker-vote-sheet">
-      <div class="overlay-title">You Must Snitch</div>
+      <div class="overlay-title">Snitch or Take the Fail?</div>
       <div class="slacker-vote-intro">
-        Name a player to reveal their top Party Pile card. If it's higher
-        than yours, the Fail passes to them (they must Snitch next) — but
-        you still bank a Slacker card. Otherwise you keep the Fail AND
-        bank a Slacker card.
+        Your Party card: <strong>${_esc(String(myVal))}</strong>.
+        Name a player to reveal their top Party Pile card — if it's
+        strictly higher than yours, the extra Fail passes to them. If
+        it's equal or lower, you keep the extra Fail AND bank a Slacker
+        card. Or just pass and keep the extra Fail with no penalty.
+      </div>
+      <div class="snitch-odds">
+        ${higherCount} of ${targets.length} player${targets.length !== 1 ? 's' : ''} have a higher
+        Party card — <strong>${pct}% chance of a correct Snitch</strong>.
       </div>
       <div class="slacker-vote-grid" id="ss-grid"></div>
+      <button class="btn-t" id="ss-pass" style="margin-top:14px;">Pass (keep the Fail)</button>
     </div>`;
 
   const grid = overlay.querySelector('#ss-grid');
@@ -1108,6 +1125,13 @@ function _openSimpleSnitchOverlay() {
     btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') snitch(); });
     grid.appendChild(btn);
   }
+
+  overlay.querySelector('#ss-pass').addEventListener('click', () => {
+    overlay.remove();
+    try { _dispatchEvents(simpleSnitchPass(_state, _humanId)); }
+    catch (e) { console.warn(e); }
+  });
+
   document.body.appendChild(overlay);
 }
 

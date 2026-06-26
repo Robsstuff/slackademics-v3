@@ -25,6 +25,7 @@
      { type:'FAIL_BLAME_VOTE',     targetId }
      { type:'FAIL_LEADER_TIE_BREAK', fromId, toId }
      { type:'SIMPLE_SNITCH_TARGET', targetId }
+     { type:'SIMPLE_SNITCH_PASS' }
    ===================================================== */
 'use strict';
 
@@ -179,8 +180,11 @@ function _actionSimpleSnitch(state, playerId, player) {
   const others  = activePlayers(state).filter(id => id !== playerId && !already.includes(id));
   if (others.length === 0) return null;   // engine auto-resolves this case
 
+  const myTop = player.partyPile[player.partyPile.length - 1];
+  const myVal = myTop ? (myTop.type === 'copy' ? 9 : myTop.value) : -1;
+
   // Name whoever holds the highest top Party card to maximise the chance
-  // their card beats ours and the chain keeps climbing away from us.
+  // their card beats ours.
   let bestId  = others[0];
   let bestVal = -Infinity;
   for (const id of others) {
@@ -189,7 +193,14 @@ function _actionSimpleSnitch(state, playerId, player) {
     if (val > bestVal) { bestVal = val; bestId = id; }
   }
 
-  return { type: 'SIMPLE_SNITCH_TARGET', targetId: bestId };
+  // Snitching is optional — only worth attempting if the best candidate
+  // actually beats our own card; otherwise it's a guaranteed Slacker card
+  // for nothing, so pass instead. Leave a small chance of passing even
+  // with good odds, for variety.
+  if (bestVal > myVal && Math.random() < 0.85) {
+    return { type: 'SIMPLE_SNITCH_TARGET', targetId: bestId };
+  }
+  return { type: 'SIMPLE_SNITCH_PASS' };
 }
 
 // ─────────────────────────────────────────────────────────

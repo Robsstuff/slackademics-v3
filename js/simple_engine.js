@@ -11,27 +11,32 @@
        the first) is discarded. No reveal/compare step, no appeal.
 
      Who's to Blame?   — runs after a project FAIL.
-       Every active player loses their top Party card at the end
-       of the round, no matter what happens below. Players vote on
-       who's to blame (ties broken the same way as above); whoever
-       gets the most votes is on the hook for a Fail, but can try to
-       Snitch their way out of it by naming another player. If the
-       named player's top Party card is HIGHER than the current
-       holder's, the Snitch succeeds — liability (and the obligation
-       to Snitch) transfers to the named player, and the chain keeps
-       climbing. Either way, whoever just attempted a Snitch banks a
-       Slacker card (-3 points) for the attempt. The chain ends —
-       and that link keeps the Fail (on top of their Slacker card) —
-       either when a Snitch attempt fails (named player's card is
-       equal or lower), or when the current holder has nobody left
-       to name. Exactly one Fail is always handed out per round.
+       Every active player has already taken a simultaneous Group Fail
+       (see engine.js's resolveOutcome) before this flow even starts.
+       Players vote on who's to blame for ONE additional Fail (ties
+       broken the same way as Group Evaluation); whoever gets the most
+       votes reveals their top Party card and is on the hook for the
+       extra Fail. Snitching is entirely OPTIONAL: the current holder
+       may name another player, or simply pass and keep the extra Fail.
+       A Snitch only succeeds if the named player's top Party card is
+       STRICTLY higher than the current holder's — if so, liability for
+       the extra Fail transfers to the named player, who reveals their
+       card and gets the same optional choice (the chain keeps
+       climbing). The chain ends — and whoever is "current" at that
+       moment keeps the extra Fail — when a Snitch attempt is incorrect
+       (named player's card is equal or lower), when the current holder
+       has nobody left to name, or when they simply pass. An incorrect
+       Snitch ALSO costs the attempter a Slacker card (-3 points); passing
+       or running out of targets does not. The original vote-winner and
+       every player who was correctly Snitched on lose their top Party
+       card at the end of the round (everyone else keeps theirs).
 
    Phases added by this module:
      GROUP_EVAL             — all players placing slacker votes
      GROUP_EVAL_LEADER_TIE  — leader breaks a slacker-vote tie
      SIMPLE_BLAME_VOTE      — all players voting on who's to blame
      SIMPLE_BLAME_LEADER_TIE— leader breaks a blame-vote tie
-     SIMPLE_SNITCH          — the current holder names a target
+     SIMPLE_SNITCH          — the current holder may Snitch or pass
 
    Events emitted:
      SLACKER_VOTE_CAST      { voterId, targetId }
@@ -45,12 +50,13 @@
      FAIL_BLAME_VOTES_REVEALED{ counts, leaderId, votes }
      FAIL_BLAME_TIE            { tied, leaderId }
      FAIL_BLAME_TIE_BROKEN     { fromId, toId, leaderId }
-     FAIL_BLAMED               { blamedId }
+     FAIL_BLAMED               { blamedId, card }
      SIMPLE_SNITCH_TURN        { snitcherId }
      SIMPLE_SNITCH_REVEALED    { snitcherId, targetId, snitcherCard, targetCard, sVal, tVal }
      SIMPLE_SNITCH_SUCCESS     { snitcherId, targetId }
      SIMPLE_SNITCH_FAILURE     { snitcherId, targetId }
      SIMPLE_SNITCH_STOPPED     { playerId }
+     SIMPLE_SNITCH_PASSED      { playerId }
      FAIL_BLAME_ROUND_DONE     {}
    ===================================================== */
 'use strict';
@@ -219,7 +225,7 @@ function _finalizeEval(state, events) {
 }
 
 // =====================================================
-//  "WHO'S TO BLAME?" — Fail vote + one-shot Snitch (after a FAIL)
+//  "WHO'S TO BLAME?" — Fail vote + optional Snitch chain (after a FAIL)
 // =====================================================
 
 // ── castFailBlameVote ─────────────────────────────────────
@@ -309,31 +315,36 @@ function _resolveFailVotes(state, events) {
   }
 }
 
-// The blamed player isn't given the Fail yet — they can try to Snitch
-// their way out of it first.
+// The vote-winner reveals their top Party card and is on the hook for
+// ONE extra Fail, which they may try to pass along via an optional Snitch.
 function _startSnitchPhase(state, events, blamedId) {
   const blamed = state.players[blamedId];
-  events.push(evt('FAIL_BLAMED', { blamedId }));
+  const card   = blamed.partyPile[blamed.partyPile.length - 1];
+  if (card) card.revealed = true;
+  markTopPartyForDiscard(state, blamedId);
+
+  events.push(evt('FAIL_BLAMED', { blamedId, card }));
   addLog(state, {
     type:     'fail',
-    text:     `${blamed.name} is blamed for the failed project — must Snitch to try to avoid the Fail!`,
+    text:     `${blamed.name} won the vote and reveals their Party card${card ? ` (${_displayVal(card)})` : ''} — on the hook for an extra Fail.`,
     playerId: blamedId,
   });
 
   state.simpleSnitchedThisRound = [blamedId];
   state.phase = 'SIMPLE_SNITCH';
-  _setSnitchCurrent(state, events, blamedId);
+  _offerSnitch(state, events, blamedId);
+}
+
+function _displayVal(card) {
+  return card.type === 'copy' ? 'X2 Copy' : card.value;
 }
 
 // ── simpleSnitchTarget ─────────────────────────────────────
-// The current holder names another player. If the named player's top
-// Party card is HIGHER than the current holder's, the Snitch succeeds:
-// liability transfers to the named player, who must now Snitch in turn
-// (the chain keeps climbing). Otherwise (equal, lower, or the current
-// holder already holds the single highest card) the Snitch fails: they
-// keep the Fail. Either way, whoever just attempted the Snitch banks a
-// Slacker card (-3 points). Every active player already lost their top
-// Party card when the fail vote started.
+// The current holder names another player. A Snitch only succeeds if the
+// named player's top Party card is STRICTLY higher — if so, liability for
+// the extra Fail (and the optional choice to Snitch again) transfers to
+// them, and the chain keeps climbing. Otherwise the Snitch is incorrect:
+// the current holder keeps the extra Fail AND banks a Slacker card.
 export function simpleSnitchTarget(state, snitcherId, targetId) {
   if (state.phase !== 'SIMPLE_SNITCH')
     throw new Error(`simpleSnitchTarget called in phase ${state.phase}`);
@@ -362,28 +373,52 @@ export function simpleSnitchTarget(state, snitcherId, targetId) {
     snitcherId, targetId, snitcherCard: snitcherTop, targetCard: targetTop, sVal, tVal,
   }));
 
-  state.slackerTokens[snitcherId] = (state.slackerTokens[snitcherId] ?? 0) + 1;
-
   if (tVal > sVal) {
+    markTopPartyForDiscard(state, targetId);
     events.push(evt('SIMPLE_SNITCH_SUCCESS', { snitcherId, targetId }));
     addLog(state, {
       type:     'snitch',
       text:     `${snitcher.name} snitches on ${target.name} — ${target.name}(${tVal}) > ${snitcher.name}(${sVal}). ` +
-                `Snitch succeeds! ${snitcher.name} banks a Slacker card (-3 points) — ${target.name} must now Snitch to avoid the Fail!`,
+                `Snitch succeeds! The extra Fail passes to ${target.name}.`,
       playerId: snitcherId,
     });
-    _setSnitchCurrent(state, events, targetId);
+    _offerSnitch(state, events, targetId);
   } else {
+    state.slackerTokens[snitcherId] = (state.slackerTokens[snitcherId] ?? 0) + 1;
     events.push(...applyIndividualFail(state, snitcherId));
     events.push(evt('SIMPLE_SNITCH_FAILURE', { snitcherId, targetId }));
     addLog(state, {
       type:     'snitch',
       text:     `${snitcher.name} snitches on ${target.name} — ${target.name}(${tVal}) <= ${snitcher.name}(${sVal}). ` +
-                `Snitch fails! ${snitcher.name} keeps the Fail AND banks a Slacker card (-3 points).`,
+                `Snitch is incorrect! ${snitcher.name} keeps the extra Fail AND banks a Slacker card (-3 points).`,
       playerId: snitcherId,
     });
     _endSnitchPhase(state, events);
   }
+
+  return events;
+}
+
+// ── simpleSnitchPass ────────────────────────────────────────
+// The current holder declines to Snitch and simply keeps the extra Fail.
+// No Slacker card for passing.
+export function simpleSnitchPass(state, snitcherId) {
+  if (state.phase !== 'SIMPLE_SNITCH')
+    throw new Error(`simpleSnitchPass called in phase ${state.phase}`);
+  if (state.simpleSnitchCurrentId !== snitcherId)
+    throw new Error(`Not ${snitcherId}'s snitch turn`);
+
+  const events   = [];
+  const snitcher = state.players[snitcherId];
+
+  events.push(...applyIndividualFail(state, snitcherId));
+  events.push(evt('SIMPLE_SNITCH_PASSED', { playerId: snitcherId }));
+  addLog(state, {
+    type:     'snitch',
+    text:     `${snitcher.name} passes — keeps the extra Fail.`,
+    playerId: snitcherId,
+  });
+  _endSnitchPhase(state, events);
 
   return events;
 }
@@ -394,16 +429,28 @@ function _eligibleSnitchTargets(state, currentId) {
   return activePlayers(state).filter(id => id !== currentId && !already.includes(id));
 }
 
-// Sets who must Snitch next — or, if nobody is left to name, ends the
-// chain with that player keeping the Fail (a Fail is always handed out).
-function _setSnitchCurrent(state, events, playerId) {
+// ── snitchOdds ──────────────────────────────────────────────
+// For UI display only — "the chances of correctly snitching": how many
+// of the still-eligible targets actually hold a strictly higher Party
+// card than `currentId`, as a count and percentage.
+export function snitchOdds(state, currentId) {
+  const eligible = _eligibleSnitchTargets(state, currentId);
+  const myVal    = _topPartyValue(state.players[currentId]);
+  const higher   = eligible.filter(id => _topPartyValue(state.players[id]) > myVal);
+  const pct      = eligible.length > 0 ? Math.round((higher.length / eligible.length) * 100) : 0;
+  return { eligible, higherCount: higher.length, pct };
+}
+
+// Gives `playerId` the choice to Snitch or pass — or, if nobody is left
+// to name, auto-resolves the chain with them keeping the extra Fail
+// (no Slacker card, same as a voluntary pass).
+function _offerSnitch(state, events, playerId) {
   if (_eligibleSnitchTargets(state, playerId).length === 0) {
-    state.slackerTokens[playerId] = (state.slackerTokens[playerId] ?? 0) + 1;
     events.push(...applyIndividualFail(state, playerId));
     events.push(evt('SIMPLE_SNITCH_STOPPED', { playerId }));
     addLog(state, {
       type:     'snitch',
-      text:     `${state.players[playerId].name} has no one left to snitch on — keeps the Fail AND banks a Slacker card (-3 points)!`,
+      text:     `${state.players[playerId].name} has no one left to snitch on — keeps the extra Fail!`,
       playerId,
     });
     _endSnitchPhase(state, events);
@@ -420,5 +467,5 @@ function _endSnitchPhase(state, events) {
   state.phase = 'BREAK';
   applyEndOfSemesterDiscards(state, events);
   events.push(evt('FAIL_BLAME_ROUND_DONE', {}));
-  addLog(state, { type: 'system', text: 'Round resolved — everyone discards their top Party card.' });
+  addLog(state, { type: 'system', text: 'Round resolved.' });
 }

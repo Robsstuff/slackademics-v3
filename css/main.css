@@ -1245,6 +1245,13 @@
   font-size: 10px; color: var(--muted); margin-top: 2px; text-align: center;
 }
 
+/* ── Snitch chain — odds-of-success readout ─────────────── */
+.snitch-odds {
+  font-size: 13px; font-weight: 600; text-align: center;
+  background: var(--surface); border: 2px solid var(--border);
+  border-radius: var(--r-md); padding: 8px 12px;
+}
+
 /* ── Vote results modal — Group Eval + Who's-to-Blame tally ── */
 .vote-results-sheet { max-width: 460px; }
 .vote-results-list {

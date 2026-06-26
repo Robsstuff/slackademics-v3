@@ -297,12 +297,16 @@ export function buildStepsFromEvents(events, state) {
 
       case 'FAIL_BLAME_TIE':
       case 'FAIL_BLAME_TIE_BROKEN':
-      case 'FAIL_BLAMED':
       case 'SIMPLE_SNITCH_TURN':
       case 'SIMPLE_SNITCH_SUCCESS':
       case 'SIMPLE_SNITCH_FAILURE':
       case 'SIMPLE_SNITCH_STOPPED':
+      case 'SIMPLE_SNITCH_PASSED':
         steps.push(_stepSimpleFailMessage(ev, state));
+        break;
+
+      case 'FAIL_BLAMED':
+        steps.push(_stepFailBlamed(ev, state));
         break;
 
       case 'SIMPLE_SNITCH_REVEALED':
@@ -1223,12 +1227,13 @@ function _stepSimpleFailMessage(ev, state) {
   const bannerMap = {
     FAIL_BLAME_TIE:        'blame',
     FAIL_BLAME_TIE_BROKEN: 'blame',
-    FAIL_BLAMED:           'fail',
     SIMPLE_SNITCH_TURN:    'snitch',
     SIMPLE_SNITCH_SUCCESS: 'pass',
     SIMPLE_SNITCH_FAILURE: 'fail',
     SIMPLE_SNITCH_STOPPED: 'fail',
+    SIMPLE_SNITCH_PASSED:  'fail',
   };
+  const clearBadgeTypes = ['SIMPLE_SNITCH_SUCCESS', 'SIMPLE_SNITCH_FAILURE', 'SIMPLE_SNITCH_STOPPED', 'SIMPLE_SNITCH_PASSED'];
   return {
     label: ev.type,
     duration: 1100,
@@ -1237,13 +1242,41 @@ function _stepSimpleFailMessage(ev, state) {
       renderPlayersBar(state);
       renderControlBar(state, _humanId);
       renderLog(state);
-      if (ev.type === 'SIMPLE_SNITCH_SUCCESS' || ev.type === 'SIMPLE_SNITCH_FAILURE' || ev.type === 'SIMPLE_SNITCH_STOPPED') {
+      if (clearBadgeTypes.includes(ev.type)) {
         document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
       }
       const type     = bannerMap[ev.type] ?? 'blame';
       const logEntry = state.log[state.log.length - 1];
       if (logEntry) {
         _showBanner(type, logEntry.text);
+        setTimeout(() => _removeBanner(), 1000);
+      }
+    },
+  };
+}
+
+/* FAIL_BLAMED — vote-winner reveals their Party card */
+function _stepFailBlamed(ev, state) {
+  return {
+    label: 'FAIL_BLAMED',
+    duration: 1100,
+    payload: { blamedId: ev.blamedId, card: ev.card, state },
+    callback({ blamedId, card, state }) {
+      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      const slot = document.getElementById('slot-' + blamedId);
+      if (slot && card) {
+        const badge = document.createElement('div');
+        badge.className = 'snitch-card-badge anim-scale-in';
+        badge.textContent = card.value === 'copy' ? 'X2' : card.value;
+        badge.title = `Party card: ${card.name ?? card.value}`;
+        slot.appendChild(badge);
+      }
+      const logEntry = state.log[state.log.length - 1];
+      if (logEntry) {
+        _showBanner('fail', logEntry.text);
         setTimeout(() => _removeBanner(), 1000);
       }
     },
