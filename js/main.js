@@ -1091,20 +1091,21 @@ function _openSimpleSnitchOverlay() {
   overlay.className = 'overlay-screen active';
   overlay.innerHTML = `
     <div class="overlay-sheet slacker-vote-sheet">
-      <div class="overlay-title">Snitch or Take the Fail?</div>
+      <div class="overlay-title">Keep Searching for the Slacker?</div>
       <div class="slacker-vote-intro">
-        Your Party card: <strong>${_esc(String(myVal))}</strong>.
-        Name a player to reveal their top Party Pile card — if it's
-        strictly higher than yours, the extra Fail passes to them. If
-        it's equal or lower, you keep the extra Fail AND bank a Slacker
-        card. Or just pass and keep the extra Fail with no penalty.
+        Your Party card: <strong>${_esc(String(myVal))}</strong> (already discarding
+        at round's end). Name a player to reveal their top Party Pile card — if
+        it's strictly higher than yours, the search continues with them. If it's
+        equal or lower, the search ends with nobody confirmed. Or just pass to
+        end the search now — either way, no extra Fail unless someone's Party
+        card turns out to be the actual highest in the game.
       </div>
       <div class="snitch-odds">
         ${higherCount} of ${targets.length} player${targets.length !== 1 ? 's' : ''} have a higher
         Party card — <strong>${pct}% chance of a correct Snitch</strong>.
       </div>
       <div class="slacker-vote-grid" id="ss-grid"></div>
-      <button class="btn-t" id="ss-pass" style="margin-top:14px;">Pass (keep the Fail)</button>
+      <button class="btn-t" id="ss-pass" style="margin-top:14px;">Pass (end the search)</button>
     </div>`;
 
   const grid = overlay.querySelector('#ss-grid');

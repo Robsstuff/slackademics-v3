@@ -13,23 +13,23 @@
      Who's to Blame?   — runs after a project FAIL.
        Every active player has already taken a simultaneous Group Fail
        (see engine.js's resolveOutcome) before this flow even starts.
-       Players vote on who's to blame for ONE additional Fail (ties
-       broken the same way as Group Evaluation); whoever gets the most
-       votes reveals their top Party card and is on the hook for the
-       extra Fail. Snitching is entirely OPTIONAL: the current holder
-       may name another player, or simply pass and keep the extra Fail.
-       A Snitch only succeeds if the named player's top Party card is
-       STRICTLY higher than the current holder's — if so, liability for
-       the extra Fail transfers to the named player, who reveals their
-       card and gets the same optional choice (the chain keeps
-       climbing). The chain ends — and whoever is "current" at that
-       moment keeps the extra Fail — when a Snitch attempt is incorrect
-       (named player's card is equal or lower), when the current holder
-       has nobody left to name, or when they simply pass. An incorrect
-       Snitch ALSO costs the attempter a Slacker card (-3 points); passing
-       or running out of targets does not. The original vote-winner and
-       every player who was correctly Snitched on lose their top Party
-       card at the end of the round (everyone else keeps theirs).
+       Players vote on who's to blame (ties broken the same way as
+       Group Evaluation); the vote-winner reveals their top Party card
+       and discards it at the end of the round — that's the standard
+       punishment, and it's the SAME punishment for anyone who is
+       correctly Snitched on, or who attempts an incorrect Snitch. None
+       of that hands out an extra Fail by itself. Snitching is entirely
+       OPTIONAL: the current holder may name another player, or simply
+       pass. A Snitch only succeeds if the named player's top Party
+       card is STRICTLY higher — if so, the search continues with them
+       (same optional choice). The search ends, with nobody confirmed
+       and no extra Fail awarded, on an incorrect Snitch or a pass. But
+       the moment the current holder's own Party card is already the
+       single highest (or tied-highest) among all active players, they
+       are the CONFIRMED Slacker — they take one extra Fail on top of
+       discarding their card, and the search ends immediately (shown
+       with the same popup + confetti as a Group Evaluation Slacker
+       reveal).
 
    Phases added by this module:
      GROUP_EVAL             — all players placing slacker votes
@@ -55,8 +55,8 @@
      SIMPLE_SNITCH_REVEALED    { snitcherId, targetId, snitcherCard, targetCard, sVal, tVal }
      SIMPLE_SNITCH_SUCCESS     { snitcherId, targetId }
      SIMPLE_SNITCH_FAILURE     { snitcherId, targetId }
-     SIMPLE_SNITCH_STOPPED     { playerId }
      SIMPLE_SNITCH_PASSED      { playerId }
+     SIMPLE_SNITCH_SLACKER_FOUND { playerId, partyVal }
      FAIL_BLAME_ROUND_DONE     {}
    ===================================================== */
 'use strict';
@@ -315,8 +315,10 @@ function _resolveFailVotes(state, events) {
   }
 }
 
-// The vote-winner reveals their top Party card and is on the hook for
-// ONE extra Fail, which they may try to pass along via an optional Snitch.
+// The vote-winner reveals their top Party card and discards it at the
+// end of the round — that punishment is locked in regardless of what
+// happens next. They may then try to Snitch their way to a confirmed
+// Slacker (see _checkConfirmedOrOffer).
 function _startSnitchPhase(state, events, blamedId) {
   const blamed = state.players[blamedId];
   const card   = blamed.partyPile[blamed.partyPile.length - 1];
@@ -326,13 +328,12 @@ function _startSnitchPhase(state, events, blamedId) {
   events.push(evt('FAIL_BLAMED', { blamedId, card }));
   addLog(state, {
     type:     'fail',
-    text:     `${blamed.name} won the vote and reveals their Party card${card ? ` (${_displayVal(card)})` : ''} — on the hook for an extra Fail.`,
+    text:     `${blamed.name} won the vote and reveals their Party card${card ? ` (${_displayVal(card)})` : ''} — discards it at round's end.`,
     playerId: blamedId,
   });
 
   state.simpleSnitchedThisRound = [blamedId];
-  state.phase = 'SIMPLE_SNITCH';
-  _offerSnitch(state, events, blamedId);
+  _checkConfirmedOrOffer(state, events, blamedId);
 }
 
 function _displayVal(card) {
@@ -341,10 +342,12 @@ function _displayVal(card) {
 
 // ── simpleSnitchTarget ─────────────────────────────────────
 // The current holder names another player. A Snitch only succeeds if the
-// named player's top Party card is STRICTLY higher — if so, liability for
-// the extra Fail (and the optional choice to Snitch again) transfers to
-// them, and the chain keeps climbing. Otherwise the Snitch is incorrect:
-// the current holder keeps the extra Fail AND banks a Slacker card.
+// named player's top Party card is STRICTLY higher — if so, the named
+// player discards their own top Party card (same punishment as the
+// vote-winner) and the search continues with them. Otherwise the Snitch
+// is incorrect: the attempter discards their top Party card too (already
+// locked in from becoming the current holder) and the search ends with
+// nobody confirmed — no extra Fail this round.
 export function simpleSnitchTarget(state, snitcherId, targetId) {
   if (state.phase !== 'SIMPLE_SNITCH')
     throw new Error(`simpleSnitchTarget called in phase ${state.phase}`);
@@ -379,18 +382,17 @@ export function simpleSnitchTarget(state, snitcherId, targetId) {
     addLog(state, {
       type:     'snitch',
       text:     `${snitcher.name} snitches on ${target.name} — ${target.name}(${tVal}) > ${snitcher.name}(${sVal}). ` +
-                `Snitch succeeds! The extra Fail passes to ${target.name}.`,
+                `Snitch succeeds! ${target.name} discards their Party card too — the search continues.`,
       playerId: snitcherId,
     });
-    _offerSnitch(state, events, targetId);
+    _checkConfirmedOrOffer(state, events, targetId);
   } else {
-    state.slackerTokens[snitcherId] = (state.slackerTokens[snitcherId] ?? 0) + 1;
-    events.push(...applyIndividualFail(state, snitcherId));
+    markTopPartyForDiscard(state, snitcherId);
     events.push(evt('SIMPLE_SNITCH_FAILURE', { snitcherId, targetId }));
     addLog(state, {
       type:     'snitch',
       text:     `${snitcher.name} snitches on ${target.name} — ${target.name}(${tVal}) <= ${snitcher.name}(${sVal}). ` +
-                `Snitch is incorrect! ${snitcher.name} keeps the extra Fail AND banks a Slacker card (-3 points).`,
+                `Snitch is incorrect! No Slacker confirmed this round.`,
       playerId: snitcherId,
     });
     _endSnitchPhase(state, events);
@@ -400,8 +402,8 @@ export function simpleSnitchTarget(state, snitcherId, targetId) {
 }
 
 // ── simpleSnitchPass ────────────────────────────────────────
-// The current holder declines to Snitch and simply keeps the extra Fail.
-// No Slacker card for passing.
+// The current holder declines to Snitch further. The search ends with
+// nobody confirmed — no extra Fail this round.
 export function simpleSnitchPass(state, snitcherId) {
   if (state.phase !== 'SIMPLE_SNITCH')
     throw new Error(`simpleSnitchPass called in phase ${state.phase}`);
@@ -411,11 +413,10 @@ export function simpleSnitchPass(state, snitcherId) {
   const events   = [];
   const snitcher = state.players[snitcherId];
 
-  events.push(...applyIndividualFail(state, snitcherId));
   events.push(evt('SIMPLE_SNITCH_PASSED', { playerId: snitcherId }));
   addLog(state, {
     type:     'snitch',
-    text:     `${snitcher.name} passes — keeps the extra Fail.`,
+    text:     `${snitcher.name} passes — no Slacker confirmed this round.`,
     playerId: snitcherId,
   });
   _endSnitchPhase(state, events);
@@ -441,21 +442,43 @@ export function snitchOdds(state, currentId) {
   return { eligible, higherCount: higher.length, pct };
 }
 
-// Gives `playerId` the choice to Snitch or pass — or, if nobody is left
-// to name, auto-resolves the chain with them keeping the extra Fail
-// (no Slacker card, same as a voluntary pass).
-function _offerSnitch(state, events, playerId) {
-  if (_eligibleSnitchTargets(state, playerId).length === 0) {
+// `playerId` just became the current holder (their discard is already
+// locked in by the caller). If their own Party card is already the
+// single highest — or tied-highest — among all active players, the
+// search is over: they ARE the confirmed Slacker and take one extra
+// Fail. Otherwise offer them the Snitch-or-pass choice.
+function _checkConfirmedOrOffer(state, events, playerId) {
+  const active = activePlayers(state);
+  const myVal  = _topPartyValue(state.players[playerId]);
+  const maxVal = Math.max(...active.map(id => _topPartyValue(state.players[id])));
+
+  if (myVal >= maxVal) {
     events.push(...applyIndividualFail(state, playerId));
-    events.push(evt('SIMPLE_SNITCH_STOPPED', { playerId }));
+    events.push(evt('SIMPLE_SNITCH_SLACKER_FOUND', { playerId, partyVal: myVal }));
     addLog(state, {
-      type:     'snitch',
-      text:     `${state.players[playerId].name} has no one left to snitch on — keeps the extra Fail!`,
+      type:     'blame',
+      text:     `${state.players[playerId].name} played the highest Party card — confirmed Slacker! Takes an extra Fail.`,
       playerId,
     });
     _endSnitchPhase(state, events);
     return;
   }
+
+  if (_eligibleSnitchTargets(state, playerId).length === 0) {
+    // Defensive fallback — shouldn't be reachable in practice, since
+    // anyone who isn't already the (tied-)highest always has at least
+    // one not-yet-named active player who holds a strictly higher card.
+    events.push(evt('SIMPLE_SNITCH_PASSED', { playerId }));
+    addLog(state, {
+      type: 'snitch',
+      text: `${state.players[playerId].name} has no one left to snitch on — no Slacker confirmed this round.`,
+      playerId,
+    });
+    _endSnitchPhase(state, events);
+    return;
+  }
+
+  state.phase                 = 'SIMPLE_SNITCH';
   state.simpleSnitchCurrentId = playerId;
   state.activePlayerId        = playerId;
   events.push(evt('SIMPLE_SNITCH_TURN', { snitcherId: playerId }));

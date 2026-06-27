@@ -193,10 +193,10 @@ function _actionSimpleSnitch(state, playerId, player) {
     if (val > bestVal) { bestVal = val; bestId = id; }
   }
 
-  // Snitching is optional — only worth attempting if the best candidate
-  // actually beats our own card; otherwise it's a guaranteed Slacker card
-  // for nothing, so pass instead. Leave a small chance of passing even
-  // with good odds, for variety.
+  // Snitching is optional — the engine only offers this choice at all when
+  // we're not already the confirmed Slacker, which guarantees some
+  // candidate here beats our own card. Mostly attempt; leave a small
+  // chance of passing instead, for variety.
   if (bestVal > myVal && Math.random() < 0.85) {
     return { type: 'SIMPLE_SNITCH_TARGET', targetId: bestId };
   }
