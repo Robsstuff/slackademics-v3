@@ -239,7 +239,11 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
   const activeCount    = playerOrder.length;
 
   const slackerTokens = {};
-  for (const cfg of playerConfigs) slackerTokens[cfg.id] = 0;
+  const successfulSlackOff = {};
+  for (const cfg of playerConfigs) {
+    slackerTokens[cfg.id]     = 0;
+    successfulSlackOff[cfg.id] = 0;
+  }
 
   return {
     phase:          'PLAYING',
@@ -311,6 +315,10 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
     failTiedPlayers:          [],
     simpleSnitchCurrentId:    null,
     simpleSnitchedThisRound:  [],
+
+    simpleAppealBlamedId:     null,
+    simpleSelfRevealPlayerId: null,
+    successfulSlackOff,
 
     extraCreditAwardedThisRound: false,
 

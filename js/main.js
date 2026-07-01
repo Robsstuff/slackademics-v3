@@ -13,8 +13,8 @@ import {
 }                                     from './engine.js';
 import {
   castSlackerVote, leaderBreakTie,
-  castFailBlameVote, leaderBreakFailTie, simpleSnitchTarget, simpleSnitchPass,
-  snitchOdds,
+  castFailBlameVote, leaderBreakFailTie,
+  simpleAppeal, simpleAppealPass, simpleSelfReveal,
 }                                     from './simple_engine.js';
 import { getAIAction }                from './ai.js';
 import {
@@ -205,19 +205,34 @@ function _advance() {
       return;
     }
 
-    case 'SIMPLE_SNITCH': {
-      const snitcher = _state.simpleSnitchCurrentId ? _state.players[_state.simpleSnitchCurrentId] : null;
-      if (snitcher?.isHuman) {
-        setTimeout(() => _openSimpleSnitchOverlay(), _delay(400));
-      } else if (snitcher) {
-        const action = getAIAction(_state, _state.simpleSnitchCurrentId);
+    case 'SIMPLE_APPEAL': {
+      const blamed = _state.simpleAppealBlamedId ? _state.players[_state.simpleAppealBlamedId] : null;
+      if (blamed?.isHuman) {
+        setTimeout(() => _openSimpleAppealOverlay(), _delay(400));
+      } else if (blamed) {
+        const action = getAIAction(_state, _state.simpleAppealBlamedId);
         setTimeout(() => {
           try {
-            if (action?.type === 'SIMPLE_SNITCH_TARGET') {
-              _dispatchEvents(simpleSnitchTarget(_state, _state.simpleSnitchCurrentId, action.targetId));
+            if (action?.type === 'SIMPLE_APPEAL') {
+              _dispatchEvents(simpleAppeal(_state, _state.simpleAppealBlamedId, action.targetId));
             } else {
-              _dispatchEvents(simpleSnitchPass(_state, _state.simpleSnitchCurrentId));
+              _dispatchEvents(simpleAppealPass(_state, _state.simpleAppealBlamedId));
             }
+          } catch (e) { console.warn(e); }
+        }, _delay(AI_THINK_DELAY));
+      }
+      return;
+    }
+
+    case 'SIMPLE_SELF_REVEAL': {
+      const revealer = _state.simpleSelfRevealPlayerId ? _state.players[_state.simpleSelfRevealPlayerId] : null;
+      if (revealer?.isHuman) {
+        setTimeout(() => _openSelfRevealOverlay(), _delay(400));
+      } else if (revealer) {
+        const action = getAIAction(_state, _state.simpleSelfRevealPlayerId);
+        setTimeout(() => {
+          try {
+            _dispatchEvents(simpleSelfReveal(_state, _state.simpleSelfRevealPlayerId, action?.didReveal === true));
           } catch (e) { console.warn(e); }
         }, _delay(AI_THINK_DELAY));
       }
@@ -248,7 +263,7 @@ function _afterQueueDrain() {
     setTimeout(() => _openBlameVoteOverlay(), _delay(150));
   }
 
-  // GROUP_EVAL / SIMPLE_BLAME_VOTE / SIMPLE_SNITCH: overlays fire via _advance()
+  // GROUP_EVAL / SIMPLE_BLAME_VOTE / SIMPLE_APPEAL / SIMPLE_SELF_REVEAL: overlays fire via _advance()
 
   _advance();
 }
@@ -408,14 +423,8 @@ async function _runAITurn(playerId) {
         events = leaderBreakFailTie(_state, action.fromId, action.toId);
         break;
 
-      case 'SIMPLE_SNITCH_TARGET':
-        events = simpleSnitchTarget(_state, playerId, action.targetId);
-        break;
-
-      case 'SIMPLE_SNITCH_PASS':
-        events = simpleSnitchPass(_state, playerId);
-        break;
     }
+
   } catch (err) {
     console.error('[main] AI action error:', err);
     _hideAIThinking();
@@ -1072,43 +1081,34 @@ function _openFailTieBreakOverlay() {
   document.body.appendChild(overlay);
 }
 
-// ── Snitch chain — current holder may Snitch or pass ──────
-function _openSimpleSnitchOverlay() {
-  if (!_state || _state.phase !== 'SIMPLE_SNITCH') return;
-  if (_state.simpleSnitchCurrentId !== _humanId) return;
-  if (document.getElementById('simple-snitch-overlay')) return;
+// ── Appeal — blamed player may name one other player ──────────
+function _openSimpleAppealOverlay() {
+  if (!_state || _state.phase !== 'SIMPLE_APPEAL') return;
+  if (_state.simpleAppealBlamedId !== _humanId) return;
+  if (document.getElementById('simple-appeal-overlay')) return;
 
-  const already = _state.simpleSnitchedThisRound || [];
-  const targets = activePlayers(_state).filter(id => id !== _humanId && !already.includes(id));
-  if (targets.length === 0) return;   // engine auto-resolves this case
-
-  const { higherCount, pct } = snitchOdds(_state, _humanId);
-  const myCard = _state.players[_humanId].partyPile[_state.players[_humanId].partyPile.length - 1];
-  const myVal  = myCard ? (myCard.type === 'copy' ? 'X2 Copy' : myCard.value) : '?';
+  const targets = activePlayers(_state).filter(id => id !== _humanId);
+  const myCard  = _state.players[_humanId].partyPile[_state.players[_humanId].partyPile.length - 1];
+  const myVal   = myCard ? (myCard.type === 'copy' ? 'X2 Copy' : myCard.value) : '?';
 
   const overlay = document.createElement('div');
-  overlay.id = 'simple-snitch-overlay';
+  overlay.id = 'simple-appeal-overlay';
   overlay.className = 'overlay-screen active';
   overlay.innerHTML = `
     <div class="overlay-sheet slacker-vote-sheet">
-      <div class="overlay-title">Keep Searching for the Slacker?</div>
+      <div class="overlay-title">You Are Blamed — Appeal?</div>
       <div class="slacker-vote-intro">
-        Your Party card: <strong>${_esc(String(myVal))}</strong> (already discarding
-        at round's end). Name a player to reveal their top Party Pile card — if
-        it's strictly higher than yours, the search continues with them. If it's
-        equal or lower, the search ends with nobody confirmed. Or just pass to
-        end the search now — either way, no extra Fail unless someone's Party
-        card turns out to be the actual highest in the game.
+        Your Party card: <strong>${_esc(String(myVal))}</strong>. You may name one
+        other player who must reveal their top Party card. If they hold the
+        highest Party card, consequences transfer to them (Individual Fail +
+        discard their card). If not, you keep the Individual Fail. Or pass
+        to accept the blame.
       </div>
-      <div class="snitch-odds">
-        ${higherCount} of ${targets.length} player${targets.length !== 1 ? 's' : ''} have a higher
-        Party card — <strong>${pct}% chance of a correct Snitch</strong>.
-      </div>
-      <div class="slacker-vote-grid" id="ss-grid"></div>
-      <button class="btn-t" id="ss-pass" style="margin-top:14px;">Pass (end the search)</button>
+      <div class="slacker-vote-grid" id="sa-grid"></div>
+      <button class="btn-t" id="sa-pass" style="margin-top:14px;">Accept Blame (no appeal)</button>
     </div>`;
 
-  const grid = overlay.querySelector('#ss-grid');
+  const grid = overlay.querySelector('#sa-grid');
   for (const pid of targets) {
     const p   = _state.players[pid];
     const btn = document.createElement('div');
@@ -1117,19 +1117,59 @@ function _openSimpleSnitchOverlay() {
     btn.setAttribute('tabindex', '0');
     btn.innerHTML = `<div class="slacker-vote-name">${_esc(p.name)}</div>`;
 
-    const snitch = () => {
+    const appeal = () => {
       overlay.remove();
-      try { _dispatchEvents(simpleSnitchTarget(_state, _humanId, pid)); }
+      try { _dispatchEvents(simpleAppeal(_state, _humanId, pid)); }
       catch (e) { console.warn(e); }
     };
-    btn.addEventListener('click', snitch);
-    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') snitch(); });
+    btn.addEventListener('click', appeal);
+    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') appeal(); });
     grid.appendChild(btn);
   }
 
-  overlay.querySelector('#ss-pass').addEventListener('click', () => {
+  overlay.querySelector('#sa-pass').addEventListener('click', () => {
     overlay.remove();
-    try { _dispatchEvents(simpleSnitchPass(_state, _humanId)); }
+    try { _dispatchEvents(simpleAppealPass(_state, _humanId)); }
+    catch (e) { console.warn(e); }
+  });
+
+  document.body.appendChild(overlay);
+}
+
+// ── Self-Reveal — real slacker can claim +5 pts ───────────────
+function _openSelfRevealOverlay() {
+  if (!_state || _state.phase !== 'SIMPLE_SELF_REVEAL') return;
+  if (_state.simpleSelfRevealPlayerId !== _humanId) return;
+  if (document.getElementById('self-reveal-overlay')) return;
+
+  const myCard = _state.players[_humanId].partyPile[_state.players[_humanId].partyPile.length - 1];
+  const myVal  = myCard ? (myCard.type === 'copy' ? 'X2 Copy' : myCard.value) : '?';
+
+  const overlay = document.createElement('div');
+  overlay.id = 'self-reveal-overlay';
+  overlay.className = 'overlay-screen active';
+  overlay.innerHTML = `
+    <div class="overlay-sheet slacker-vote-sheet">
+      <div class="overlay-title">Reveal Yourself as the Slacker?</div>
+      <div class="slacker-vote-intro">
+        Your top Party card: <strong>${_esc(String(myVal))}</strong>. You have the
+        highest Party card — you are the real Slacker. Reveal yourself now to
+        claim the <strong>+5 Successful Slack Off card</strong>, or stay hidden.
+      </div>
+      <div style="display:flex;gap:12px;margin-top:18px;justify-content:center;">
+        <button class="btn-p" id="sr-reveal">Reveal (+5 pts)</button>
+        <button class="btn-t" id="sr-hide">Stay Hidden</button>
+      </div>
+    </div>`;
+
+  overlay.querySelector('#sr-reveal').addEventListener('click', () => {
+    overlay.remove();
+    try { _dispatchEvents(simpleSelfReveal(_state, _humanId, true)); }
+    catch (e) { console.warn(e); }
+  });
+  overlay.querySelector('#sr-hide').addEventListener('click', () => {
+    overlay.remove();
+    try { _dispatchEvents(simpleSelfReveal(_state, _humanId, false)); }
     catch (e) { console.warn(e); }
   });
 

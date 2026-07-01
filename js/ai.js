@@ -24,8 +24,9 @@
      { type:'LEADER_TIE_BREAK',    fromId, toId }
      { type:'FAIL_BLAME_VOTE',     targetId }
      { type:'FAIL_LEADER_TIE_BREAK', fromId, toId }
-     { type:'SIMPLE_SNITCH_TARGET', targetId }
-     { type:'SIMPLE_SNITCH_PASS' }
+     { type:'SIMPLE_APPEAL',      targetId }
+     { type:'SIMPLE_APPEAL_PASS' }
+     { type:'SIMPLE_SELF_REVEAL', didReveal }
    ===================================================== */
 'use strict';
 
@@ -80,9 +81,12 @@ export function getAIAction(state, playerId) {
     case 'SIMPLE_BLAME_LEADER_TIE':
       if (state.projectLeaderId !== playerId) return null;
       return _actionFailLeaderTieBreak(state, playerId, player);
-    case 'SIMPLE_SNITCH':
-      if (state.simpleSnitchCurrentId !== playerId) return null;
-      return _actionSimpleSnitch(state, playerId, player);
+    case 'SIMPLE_APPEAL':
+      if (state.simpleAppealBlamedId !== playerId) return null;
+      return _actionSimpleAppeal(state, playerId, player);
+    case 'SIMPLE_SELF_REVEAL':
+      if (state.simpleSelfRevealPlayerId !== playerId) return null;
+      return _actionSimpleSelfReveal(state, playerId, player);
     default:           return null;
   }
 }
@@ -172,35 +176,35 @@ function _actionFailLeaderTieBreak(state, playerId, player) {
 }
 
 // ─────────────────────────────────────────────────────────
-//  SIMPLE MODE — Snitch chain AI
+//  SIMPLE MODE — Appeal + Self-Reveal AI
 // ─────────────────────────────────────────────────────────
 
-function _actionSimpleSnitch(state, playerId, player) {
-  const already = state.simpleSnitchedThisRound || [];
-  const others  = activePlayers(state).filter(id => id !== playerId && !already.includes(id));
-  if (others.length === 0) return null;   // engine auto-resolves this case
+function _actionSimpleAppeal(state, playerId, player) {
+  const others = activePlayers(state).filter(id => id !== playerId);
+  if (others.length === 0) return { type: 'SIMPLE_APPEAL_PASS' };
 
   const myTop = player.partyPile[player.partyPile.length - 1];
-  const myVal = myTop ? (myTop.type === 'copy' ? 9 : myTop.value) : -1;
+  const myVal = myTop ? (myTop.type === 'copy' ? 0 : Number(myTop.value ?? 0)) : -1;
 
-  // Name whoever holds the highest top Party card to maximise the chance
-  // their card beats ours.
+  // Find the player with the highest top Party card
   let bestId  = others[0];
   let bestVal = -Infinity;
   for (const id of others) {
     const top = state.players[id].partyPile[state.players[id].partyPile.length - 1];
-    const val = top ? (top.type === 'copy' ? 9 : top.value) : -1;
+    const val = top ? (top.type === 'copy' ? 0 : Number(top.value ?? 0)) : -1;
     if (val > bestVal) { bestVal = val; bestId = id; }
   }
 
-  // Snitching is optional — the engine only offers this choice at all when
-  // we're not already the confirmed Slacker, which guarantees some
-  // candidate here beats our own card. Mostly attempt; leave a small
-  // chance of passing instead, for variety.
+  // Appeal if there's a plausible target (higher than us) at 85% probability
   if (bestVal > myVal && Math.random() < 0.85) {
-    return { type: 'SIMPLE_SNITCH_TARGET', targetId: bestId };
+    return { type: 'SIMPLE_APPEAL', targetId: bestId };
   }
-  return { type: 'SIMPLE_SNITCH_PASS' };
+  return { type: 'SIMPLE_APPEAL_PASS' };
+}
+
+function _actionSimpleSelfReveal(state, playerId, player) {
+  // 50/50 chance to reveal — bluffing is part of the game
+  return { type: 'SIMPLE_SELF_REVEAL', didReveal: Math.random() < 0.5 };
 }
 
 // ─────────────────────────────────────────────────────────

@@ -63,7 +63,8 @@ const PHASE_LABEL = {
   GROUP_EVAL_LEADER_TIE: 'Tie Break',
   SIMPLE_BLAME_VOTE:     "Who's to Blame?",
   SIMPLE_BLAME_LEADER_TIE: 'Tie Break',
-  SIMPLE_SNITCH:         'Snitch Chain',
+  SIMPLE_APPEAL:         'Appeal',
+  SIMPLE_SELF_REVEAL:    'Self-Reveal',
   GAMEOVER:              'Game Over',
 };
 
@@ -80,7 +81,8 @@ const PHASE_SUB = {
   GROUP_EVAL_LEADER_TIE: 'Tie Break',
   SIMPLE_BLAME_VOTE:     'Voting',
   SIMPLE_BLAME_LEADER_TIE: 'Tie Break',
-  SIMPLE_SNITCH:         'Snitching',
+  SIMPLE_APPEAL:         'Appealing',
+  SIMPLE_SELF_REVEAL:    'Revealing',
   GAMEOVER:              'Game Over',
 };
 
@@ -677,14 +679,26 @@ export function renderControlBar(state, humanId) {
       break;
     }
 
-    case 'SIMPLE_SNITCH': {
-      const snitching = state.simpleSnitchCurrentId === humanId;
-      if (snitching) {
-        show('btn-continue', true, 'Snitch or pass…');
+    case 'SIMPLE_APPEAL': {
+      const appealing = state.simpleAppealBlamedId === humanId;
+      if (appealing) {
+        show('btn-continue', true, 'Appeal or accept blame…');
       } else {
-        const snitcher = state.simpleSnitchCurrentId ? state.players[state.simpleSnitchCurrentId] : null;
+        const blamed = state.simpleAppealBlamedId ? state.players[state.simpleAppealBlamedId] : null;
         show('btn-continue', true,
-          snitcher ? `Waiting for ${esc(snitcher.name)}…` : 'Waiting…');
+          blamed ? `Waiting for ${esc(blamed.name)}…` : 'Waiting…');
+      }
+      break;
+    }
+
+    case 'SIMPLE_SELF_REVEAL': {
+      const revealing = state.simpleSelfRevealPlayerId === humanId;
+      if (revealing) {
+        show('btn-continue', true, 'Reveal yourself or stay hidden…');
+      } else {
+        const revealer = state.simpleSelfRevealPlayerId ? state.players[state.simpleSelfRevealPlayerId] : null;
+        show('btn-continue', true,
+          revealer ? `Waiting for ${esc(revealer.name)}…` : 'Waiting…');
       }
       break;
     }
@@ -895,13 +909,15 @@ export function renderPlayerStatus(state, humanId) {
   const partyScore = computePileTotal(p.partyPile || [], { cramCount: _cramC, cheatCount: _cheatC });
   const ecBonus    = (p.extraCredits || 0) * 3;
   const cleanBonus = (p.individualFails || 0) === 0 ? (p.extraCredits || 0) * 2 : 0;
-  // Each Slacker card is worth -3 points (simple mode only)
   const slackerPenalty = state.gameMode === 'simple'
     ? (state.slackerTokens?.[humanId] ?? 0) * 3
     : 0;
+  const slackOffBonus = state.gameMode === 'simple'
+    ? (state.successfulSlackOff?.[humanId] ?? 0) * 5
+    : 0;
   const liveScore  = state.phase === 'GAMEOVER'
     ? (p.academicPoints || 0)
-    : Math.max(0, partyScore) + ecBonus + cleanBonus - slackerPenalty;
+    : Math.max(0, partyScore) + ecBonus + cleanBonus - slackerPenalty + slackOffBonus;
 
   el.innerHTML =
     '<div class="status-section">' +

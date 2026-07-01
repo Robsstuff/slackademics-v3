@@ -274,15 +274,35 @@ export function buildStepsFromEvents(events, state) {
         steps.push(_stepEvalMessage(ev, state));
         break;
 
+      case 'EVAL_CARD_REVEALED':
+        steps.push(_stepEvalCardRevealed(ev, state));
+        break;
+
+      case 'EVAL_NOT_SLACKER':
+        steps.push(_stepEvalNotSlacker(ev, state));
+        break;
+
       case 'EVAL_CONFIRMED_SLACKER':
         steps.push(_stepEvalConfirmedSlacker(ev, state));
+        break;
+
+      case 'EVAL_SELF_REVEAL_OFFER':
+        steps.push(_stepEvalSelfRevealOffer(ev, state));
+        break;
+
+      case 'EVAL_SELF_REVEALED':
+        steps.push(_stepEvalSelfRevealed(ev, state));
+        break;
+
+      case 'EVAL_SELF_REVEAL_DECLINED':
+        steps.push(_stepEvalSelfRevealDeclined(ev, state));
         break;
 
       case 'EVAL_ROUND_DONE':
         steps.push(_stepEvalRoundDone(ev, state));
         break;
 
-      // ── "Who's to Blame?" fail vote + Snitch chain (Simple) ──
+      // ── "Who's to Blame?" fail vote + Appeal (Simple) ──
       case 'FAIL_BLAME_VOTE_START':
         steps.push(_stepFailBlameVoteStart(ev, state));
         break;
@@ -297,10 +317,6 @@ export function buildStepsFromEvents(events, state) {
 
       case 'FAIL_BLAME_TIE':
       case 'FAIL_BLAME_TIE_BROKEN':
-      case 'SIMPLE_SNITCH_TURN':
-      case 'SIMPLE_SNITCH_SUCCESS':
-      case 'SIMPLE_SNITCH_FAILURE':
-      case 'SIMPLE_SNITCH_PASSED':
         steps.push(_stepSimpleFailMessage(ev, state));
         break;
 
@@ -308,12 +324,36 @@ export function buildStepsFromEvents(events, state) {
         steps.push(_stepFailBlamed(ev, state));
         break;
 
-      case 'SIMPLE_SNITCH_REVEALED':
-        steps.push(_stepSimpleSnitchRevealed(ev, state));
+      case 'FAIL_APPEAL_REVEALED':
+        steps.push(_stepFailAppealRevealed(ev, state));
         break;
 
-      case 'SIMPLE_SNITCH_SLACKER_FOUND':
-        steps.push(_stepSimpleSnitchSlackerFound(ev, state));
+      case 'FAIL_APPEAL_SUCCESS':
+        steps.push(_stepFailAppealSuccess(ev, state));
+        break;
+
+      case 'FAIL_SLACKER_FOUND':
+        steps.push(_stepFailSlackerFound(ev, state));
+        break;
+
+      case 'FAIL_APPEAL_FAIL':
+        steps.push(_stepFailAppealFail(ev, state));
+        break;
+
+      case 'FAIL_APPEAL_PASSED':
+        steps.push(_stepFailAppealPassed(ev, state));
+        break;
+
+      case 'FAIL_SELF_REVEAL_OFFER':
+        steps.push(_stepFailSelfRevealOffer(ev, state));
+        break;
+
+      case 'FAIL_SELF_REVEALED':
+        steps.push(_stepFailSelfRevealed(ev, state));
+        break;
+
+      case 'FAIL_SELF_REVEAL_DECLINED':
+        steps.push(_stepFailSelfRevealDeclined(ev, state));
         break;
 
       case 'FAIL_BLAME_ROUND_DONE':
@@ -1154,10 +1194,85 @@ function _stepEvalMessage(ev, state) {
   };
 }
 
+/* EVAL_CARD_REVEALED — show the voted player's party card badge */
+function _stepEvalCardRevealed(ev, state) {
+  return {
+    label: 'EVAL_CARD_REVEALED',
+    duration: 1200,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderPlayersBar(state);
+      renderLog(state);
+      const player = state.players[ev.playerId];
+      const slot   = document.getElementById('slot-' + ev.playerId);
+      if (slot && ev.card) {
+        const badge = document.createElement('div');
+        badge.className = 'snitch-card-badge anim-scale-in';
+        badge.textContent = ev.card.type === 'copy' ? 'X2' : ev.card.value;
+        badge.title = `Party card: ${ev.card.name ?? ev.card.value}`;
+        slot.appendChild(badge);
+      }
+      _showBanner('snitch', `${player?.name ?? '?'} reveals Party card: ${ev.partyVal}`);
+      setTimeout(() => _removeBanner(), 1100);
+    },
+  };
+}
+
+/* EVAL_NOT_SLACKER — voted player is not the slacker */
+function _stepEvalNotSlacker(ev, state) {
+  return {
+    label: 'EVAL_NOT_SLACKER',
+    duration: 1400,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      const player = state.players[ev.playerId];
+      renderLog(state);
+      _showBanner('blame', `${player?.name ?? '?'} (${ev.partyVal}) is NOT the highest (max ${ev.maxVal}) — evaluation fails!`);
+      setTimeout(() => _removeBanner(), 1200);
+    },
+  };
+}
+
 /* EVAL_CONFIRMED_SLACKER — blocking popup + confetti */
 function _stepEvalConfirmedSlacker(ev, state) {
   return {
     label: 'EVAL_CONFIRMED_SLACKER',
+    duration: 0,
+    payload: { ev, state },
+    async callback({ ev, state }) {
+      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      const slacker = state.players[ev.slackerId];
+      _launchConfetti();
+      await _showSlackerFoundModal(slacker?.name ?? '?', 'Discards their top Party card at round\'s end.');
+    },
+  };
+}
+
+/* EVAL_SELF_REVEAL_OFFER — the real slacker may reveal themselves */
+function _stepEvalSelfRevealOffer(ev, state) {
+  return {
+    label: 'EVAL_SELF_REVEAL_OFFER',
+    duration: 1000,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderControlBar(state, _humanId);
+      renderPlayersBar(state);
+      renderLog(state);
+      _showBanner('snitch', 'The real Slacker may now reveal themselves for +5 points!');
+      setTimeout(() => _removeBanner(), 900);
+    },
+  };
+}
+
+/* EVAL_SELF_REVEALED — blocking popup + confetti */
+function _stepEvalSelfRevealed(ev, state) {
+  return {
+    label: 'EVAL_SELF_REVEALED',
     duration: 0,
     payload: { ev, state },
     async callback({ ev, state }) {
@@ -1166,9 +1281,22 @@ function _stepEvalConfirmedSlacker(ev, state) {
       renderLog(state);
       const slacker = state.players[ev.slackerId];
       _launchConfetti();
-      const body = 'Banks 1 Slacker card (-3 points)' +
-        (ev.discarded > 0 ? ` — ${ev.discarded} other Slacker card${ev.discarded !== 1 ? 's' : ''} discarded.` : '.');
-      await _showSlackerFoundModal(slacker?.name ?? '?', body);
+      await _showSlackerFoundModal(slacker?.name ?? '?', '+5 Successful Slack Off card earned!', 'REVEALED THEMSELVES!');
+    },
+  };
+}
+
+/* EVAL_SELF_REVEAL_DECLINED */
+function _stepEvalSelfRevealDeclined(ev, state) {
+  return {
+    label: 'EVAL_SELF_REVEAL_DECLINED',
+    duration: 900,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      _showBanner('blame', 'The Slacker stays hidden.');
+      setTimeout(() => _removeBanner(), 800);
     },
   };
 }
@@ -1227,17 +1355,12 @@ function _stepFailBlameVotesRevealed(ev, state) {
   };
 }
 
-/* Generic narrative events for the Fail vote + Snitch chain */
+/* Generic narrative events for the fail vote tie break */
 function _stepSimpleFailMessage(ev, state) {
   const bannerMap = {
     FAIL_BLAME_TIE:        'blame',
     FAIL_BLAME_TIE_BROKEN: 'blame',
-    SIMPLE_SNITCH_TURN:    'snitch',
-    SIMPLE_SNITCH_SUCCESS: 'snitch',
-    SIMPLE_SNITCH_FAILURE: 'blame',
-    SIMPLE_SNITCH_PASSED:  'blame',
   };
-  const clearBadgeTypes = ['SIMPLE_SNITCH_FAILURE', 'SIMPLE_SNITCH_PASSED'];
   return {
     label: ev.type,
     duration: 1100,
@@ -1246,9 +1369,6 @@ function _stepSimpleFailMessage(ev, state) {
       renderPlayersBar(state);
       renderControlBar(state, _humanId);
       renderLog(state);
-      if (clearBadgeTypes.includes(ev.type)) {
-        document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
-      }
       const type     = bannerMap[ev.type] ?? 'blame';
       const logEntry = state.log[state.log.length - 1];
       if (logEntry) {
@@ -1287,37 +1407,49 @@ function _stepFailBlamed(ev, state) {
   };
 }
 
-/* SIMPLE_SNITCH_REVEALED — show target's party card popping up */
-function _stepSimpleSnitchRevealed(ev, state) {
+/* FAIL_APPEAL_REVEALED — named player reveals their Party card */
+function _stepFailAppealRevealed(ev, state) {
   return {
-    label: 'SIMPLE_SNITCH_REVEALED',
-    duration: 800,
-    payload: {
-      snitcherId: ev.snitcherId, snitcherCard: ev.snitcherCard,
-      targetId: ev.targetId, targetCard: ev.targetCard, state,
-    },
-    callback({ snitcherId, snitcherCard, targetId, targetCard, state }) {
+    label: 'FAIL_APPEAL_REVEALED',
+    duration: 1200,
+    payload: { ev, state },
+    callback({ ev, state }) {
       document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
       renderLog(state);
-      const badgeOn = (playerId, card) => {
-        const slot = document.getElementById('slot-' + playerId);
-        if (!slot || !card) return;
+      const target = state.players[ev.targetId];
+      const slot   = document.getElementById('slot-' + ev.targetId);
+      if (slot && ev.targetCard) {
         const badge = document.createElement('div');
         badge.className = 'snitch-card-badge anim-scale-in';
-        badge.textContent = card.value === 'copy' ? 'X2' : card.value;
-        badge.title = `Party card: ${card.name ?? card.value}`;
+        badge.textContent = ev.targetCard.type === 'copy' ? 'X2' : ev.targetCard.value;
+        badge.title = `Party card: ${ev.targetCard.name ?? ev.targetCard.value}`;
         slot.appendChild(badge);
-      };
-      badgeOn(snitcherId, snitcherCard);
-      badgeOn(targetId, targetCard);
+      }
+      _showBanner('snitch', `${target?.name ?? '?'} reveals Party card: ${ev.targetVal}`);
+      setTimeout(() => _removeBanner(), 1100);
     },
   };
 }
 
-/* SIMPLE_SNITCH_SLACKER_FOUND — blocking popup + confetti, same as Group Eval */
-function _stepSimpleSnitchSlackerFound(ev, state) {
+/* FAIL_APPEAL_SUCCESS — consequences transfer */
+function _stepFailAppealSuccess(ev, state) {
   return {
-    label: 'SIMPLE_SNITCH_SLACKER_FOUND',
+    label: 'FAIL_APPEAL_SUCCESS',
+    duration: 1000,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderLog(state);
+      const target = state.players[ev.targetId];
+      _showBanner('fail', `Appeal SUCCEEDS — consequences transfer to ${target?.name ?? '?'}!`);
+      setTimeout(() => _removeBanner(), 900);
+    },
+  };
+}
+
+/* FAIL_SLACKER_FOUND — blocking popup + confetti (appeal confirmed slacker) */
+function _stepFailSlackerFound(ev, state) {
+  return {
+    label: 'FAIL_SLACKER_FOUND',
     duration: 0,
     payload: { ev, state },
     async callback({ ev, state }) {
@@ -1327,7 +1459,88 @@ function _stepSimpleSnitchSlackerFound(ev, state) {
       renderLog(state);
       const slacker = state.players[ev.playerId];
       _launchConfetti();
-      await _showSlackerFoundModal(slacker?.name ?? '?', 'Confirmed Slacker! Takes an extra Fail.');
+      await _showSlackerFoundModal(slacker?.name ?? '?', 'Individual Fail + discards their top Party card.');
+    },
+  };
+}
+
+/* FAIL_APPEAL_FAIL — appeal fails, blamed keeps consequences */
+function _stepFailAppealFail(ev, state) {
+  return {
+    label: 'FAIL_APPEAL_FAIL',
+    duration: 1100,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderPlayersBar(state);
+      renderLog(state);
+      const blamed = state.players[ev.blamedId];
+      _showBanner('fail', `Appeal fails — ${blamed?.name ?? '?'} keeps the Individual Fail.`);
+      setTimeout(() => _removeBanner(), 1000);
+    },
+  };
+}
+
+/* FAIL_APPEAL_PASSED — blamed passes on appeal */
+function _stepFailAppealPassed(ev, state) {
+  return {
+    label: 'FAIL_APPEAL_PASSED',
+    duration: 1000,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderPlayersBar(state);
+      renderLog(state);
+      const blamed = state.players[ev.blamedId];
+      _showBanner('fail', `${blamed?.name ?? '?'} passes on the appeal — takes the Individual Fail.`);
+      setTimeout(() => _removeBanner(), 900);
+    },
+  };
+}
+
+/* FAIL_SELF_REVEAL_OFFER */
+function _stepFailSelfRevealOffer(ev, state) {
+  return {
+    label: 'FAIL_SELF_REVEAL_OFFER',
+    duration: 1000,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderControlBar(state, _humanId);
+      renderPlayersBar(state);
+      renderLog(state);
+      _showBanner('snitch', 'The real Slacker may reveal themselves for +5 points!');
+      setTimeout(() => _removeBanner(), 900);
+    },
+  };
+}
+
+/* FAIL_SELF_REVEALED — blocking popup + confetti */
+function _stepFailSelfRevealed(ev, state) {
+  return {
+    label: 'FAIL_SELF_REVEALED',
+    duration: 0,
+    payload: { ev, state },
+    async callback({ ev, state }) {
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      const slacker = state.players[ev.slackerId];
+      _launchConfetti();
+      await _showSlackerFoundModal(slacker?.name ?? '?', '+5 Successful Slack Off card earned!', 'REVEALED THEMSELVES!');
+    },
+  };
+}
+
+/* FAIL_SELF_REVEAL_DECLINED */
+function _stepFailSelfRevealDeclined(ev, state) {
+  return {
+    label: 'FAIL_SELF_REVEAL_DECLINED',
+    duration: 900,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      _showBanner('blame', 'The Slacker stays hidden.');
+      setTimeout(() => _removeBanner(), 800);
     },
   };
 }
@@ -1499,8 +1712,9 @@ function _showVoteResultsModal({ title, intro, counts, state, cardImg }) {
   });
 }
 
-// ── Blocking "X is the Slacker!" popup, shown alongside confetti.
-function _showSlackerFoundModal(name, bodyText) {
+// ── Blocking popup — used for confirmed slacker and self-reveal.
+// titleSuffix defaults to "IS THE SLACKER!" but can be overridden.
+function _showSlackerFoundModal(name, bodyText, titleSuffix = 'IS THE SLACKER!') {
   return new Promise(resolve => {
     document.getElementById('slacker-found-overlay')?.remove();
 
@@ -1510,7 +1724,7 @@ function _showSlackerFoundModal(name, bodyText) {
     overlay.innerHTML = `
       <div class="overlay-sheet slacker-found-sheet">
         <img src="./cards/slacker.jpg" alt="Slacker" class="slacker-found-img"/>
-        <div class="slacker-found-title">${_esc(name)} IS THE SLACKER!</div>
+        <div class="slacker-found-title">${_esc(name)} ${_esc(titleSuffix)}</div>
         <div class="overlay-body">${_esc(bodyText)}</div>
         <button class="btn-p" id="sf-continue">Continue</button>
       </div>`;

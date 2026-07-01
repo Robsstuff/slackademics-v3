@@ -1127,6 +1127,8 @@ export function semesterBreak(state) {
   state.failTiedPlayers            = [];
   state.simpleSnitchCurrentId      = null;
   state.simpleSnitchedThisRound    = [];
+  state.simpleAppealBlamedId       = null;
+  state.simpleSelfRevealPlayerId   = null;
 
   // Apply carry-over target penalty (Curve the Grade)
   state.targetBonus      = state.nextTargetPenalty || 0;
@@ -1425,10 +1427,13 @@ function _computeFinalScores(state) {
     const partyScore = computePileTotal(p.partyPile, effects);
     const ecBonus    = p.extraCredits * 3;
     const cleanBonus = p.individualFails === 0 ? p.extraCredits * 2 : 0;
-    // Each Slacker card is worth -3 points
+    // Each Slacker card is worth -3 points; each Successful Slack Off is +5
     const slackerPenalty = state.gameMode === 'simple'
       ? (state.slackerTokens?.[id] ?? 0) * 3
       : 0;
-    p.academicPoints = Math.max(0, partyScore) + ecBonus + cleanBonus - slackerPenalty;
+    const slackOffBonus = state.gameMode === 'simple'
+      ? (state.successfulSlackOff?.[id] ?? 0) * 5
+      : 0;
+    p.academicPoints = Math.max(0, partyScore) + ecBonus + cleanBonus - slackerPenalty + slackOffBonus;
   }
 }
