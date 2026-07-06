@@ -3,68 +3,60 @@
 
    Two independent post-round flows:
 
-     Group Evaluation — runs after a PASS without Extra Credit.
-       Players vote on who slacked off using their Voting card.
-       Ties are broken by the Project Leader moving one vote.
-       The vote-winner reveals their top Party card:
-         - If it is the highest (or equal-highest) among all active
-           players → they ARE the Slacker and discard that card.
-         - If not → evaluation fails; the player flips their card
-           back. The real Slacker (not the voted player) may then
-           choose to reveal themselves for +5 Successful Slack Off.
+     Group Evaluation — runs after every PASS (including passes via
+       Extra Credit). Players vote on who slacked off. The vote-winner
+       reveals their top Party card:
+         - Highest (or tied-highest) → they ARE the Slacker: discard
+           that card. If the leader gifted EC this round, that EC is
+           also revoked.
+         - Not highest → evaluation fails; the voted player flips back.
+           The real Slacker may then reveal themselves for +5 SSO.
 
      Who's to Blame? — runs after a project FAIL.
-       Every active player already took a simultaneous Group Fail
-       (see engine.js resolveOutcome) before this flow starts.
-       Players vote on who's to blame (ties broken the same way).
-       The vote-winner is "blamed"; they reveal their top Party card
-       and may appeal by naming one other player:
-         - If that player holds the highest Party card → APPEAL
-           SUCCEEDS: consequences (Individual Fail + discard Party
-           card) transfer to them; the blamed player goes free.
-         - If not → APPEAL FAILS: the blamed player keeps the
-           Individual Fail and discards their Party card.
-       If no appeal is made ("pass"), the blamed player takes the
-       consequences directly. After a failed/passed appeal, the real
-       Slacker (not the blamed player) may reveal themselves for +5.
-
-   Copy cards have a Party value of 0. (Pairs sum to 8 on the effort
-   side; copy+copy → the Party card contributes 0.)
+       Everyone already took a Group Fail. Vote selects one player
+       ("the blame holder"); they immediately reveal their top Party
+       card and ALWAYS discard it. If they hold the highest card they
+       also take an Individual Fail. They may then start a Snitch chain:
+         - Name a player: if that player's card is STRICTLY higher →
+           they also discard; chain continues (they become the new
+           snitch holder).
+         - If not strictly higher → snitcher loses 1 EC (or 1 SSO if
+           no EC) as a penalty; chain ends.
+         - Or pass — chain ends, no penalty.
+       There is NO self-reveal option in the fail context.
 
    Phases added by this module:
      GROUP_EVAL               — all players placing Voting cards
      GROUP_EVAL_LEADER_TIE    — leader breaks a slacker-vote tie
      SIMPLE_BLAME_VOTE        — all players voting on who's to blame
      SIMPLE_BLAME_LEADER_TIE  — leader breaks a blame-vote tie
-     SIMPLE_APPEAL            — blamed player may name one other player
-     SIMPLE_SELF_REVEAL       — real slacker may reveal themselves
+     SIMPLE_FAIL_SNITCH       — blame holder (or chain holder) may snitch or pass
+     SIMPLE_SELF_REVEAL       — real slacker may reveal (eval/pass context only)
 
-   Events emitted:
+   Events emitted (GROUP EVAL):
      SLACKER_VOTE_CAST         { voterId, targetId }
      EVAL_VOTES_REVEALED       { counts, leaderId, votes }
      EVAL_TIE                  { tied, leaderId }
      EVAL_TIE_BROKEN           { fromId, toId, leaderId }
      EVAL_CARD_REVEALED        { playerId, card, partyVal, maxVal, isSlacker }
      EVAL_CONFIRMED_SLACKER    { slackerId, partyVal }
+     EVAL_EC_REVOKED           { recipientId }
      EVAL_NOT_SLACKER          { playerId, partyVal, maxVal }
      EVAL_SELF_REVEAL_OFFER    { realSlackerId }
      EVAL_SELF_REVEALED        { slackerId, card, partyVal }
      EVAL_SELF_REVEAL_DECLINED { slackerId }
      EVAL_ROUND_DONE           {}
 
+   Events emitted (WHO'S TO BLAME):
      FAIL_BLAME_VOTE_CAST       { voterId, targetId }
      FAIL_BLAME_VOTES_REVEALED  { counts, leaderId, votes }
      FAIL_BLAME_TIE             { tied, leaderId }
      FAIL_BLAME_TIE_BROKEN      { fromId, toId, leaderId }
-     FAIL_BLAMED                { blamedId, card }
-     FAIL_APPEAL_REVEALED       { blamedId, targetId, targetCard, targetVal, maxVal, isSlacker }
-     FAIL_APPEAL_SUCCESS        { blamedId, targetId }
-     FAIL_SLACKER_FOUND         { playerId, partyVal }
-     FAIL_APPEAL_FAIL           { blamedId, targetId }
-     FAIL_APPEAL_PASSED         { blamedId }
-     FAIL_SELF_REVEAL_OFFER     { realSlackerId }
-     FAIL_SELF_REVEALED         { slackerId, card, partyVal }
-     FAIL_SELF_REVEAL_DECLINED  { slackerId }
+     FAIL_BLAMED                { blamedId, card, isSlacker, partyVal }
+     FAIL_CONFIRMED_SLACKER     { blamedId, partyVal }
+     FAIL_SNITCH_SUCCESS        { snitcherId, targetId, targetCard, targetVal }
+     FAIL_SNITCH_FAILED         { snitcherId, targetId, targetCard, targetVal, penalty }
+     FAIL_SNITCH_PASSED         { snitcherId }
      FAIL_BLAME_ROUND_DONE      {}
    ===================================================== */
 'use strict';
@@ -97,10 +89,9 @@ function _displayVal(card) {
 }
 
 // =====================================================
-//  GROUP EVALUATION — Slacker vote (after a PASS)
+//  GROUP EVALUATION — Slacker vote (after every PASS)
 // =====================================================
 
-// ── castSlackerVote ───────────────────────────────────────────
 export function castSlackerVote(state, voterId, targetId) {
   if (state.phase !== 'GROUP_EVAL')
     throw new Error(`castSlackerVote called in phase ${state.phase}`);
@@ -127,7 +118,6 @@ export function castSlackerVote(state, voterId, targetId) {
   return events;
 }
 
-// ── leaderBreakTie ────────────────────────────────────────────
 export function leaderBreakTie(state, fromId, toId) {
   if (state.phase !== 'GROUP_EVAL_LEADER_TIE')
     throw new Error(`leaderBreakTie called in phase ${state.phase}`);
@@ -149,8 +139,6 @@ export function leaderBreakTie(state, fromId, toId) {
   _revealAndCheck(state, events, toId);
   return events;
 }
-
-// ── Internal helpers ──────────────────────────────────────────
 
 function _resolveAllVotes(state, events) {
   const counts = {};
@@ -187,9 +175,7 @@ function _resolveAllVotes(state, events) {
 }
 
 // The voted player reveals their top Party card. If it is the highest
-// (or tied-highest) among all active players they ARE the Slacker and
-// must discard it. Otherwise evaluation fails and the real Slacker may
-// choose to self-reveal.
+// (or tied-highest) among all active players they ARE the Slacker.
 function _revealAndCheck(state, events, votedId) {
   const voted = state.players[votedId];
   const card  = voted.partyPile[voted.partyPile.length - 1];
@@ -212,6 +198,20 @@ function _revealAndCheck(state, events, votedId) {
       text:     `${voted.name} has the highest Party card (${myVal}) — IS the Slacker! Discards their top Party card.`,
       playerId: votedId,
     });
+    // Revoke the EC the leader gifted this round (if any)
+    const giftedId = state.simpleECGiftPlayerId;
+    if (giftedId) {
+      const gifted = state.players[giftedId];
+      if (gifted && gifted.extraCredits > 0) {
+        gifted.extraCredits -= 1;
+        events.push(evt('EVAL_EC_REVOKED', { recipientId: giftedId }));
+        addLog(state, {
+          type:     'fail',
+          text:     `${gifted.name}'s Extra Credit from this round is revoked — the Slacker was caught!`,
+          playerId: giftedId,
+        });
+      }
+    }
     _finalizeEval(state, events);
   } else {
     events.push(evt('EVAL_NOT_SLACKER', { playerId: votedId, partyVal: myVal, maxVal }));
@@ -254,6 +254,8 @@ function _finalizeEval(state, events) {
   state.simpleSelfRevealPlayerId = null;
   state.evalRoundCounts          = {};
   state.evalAccusedId            = null;
+  state.simpleECGiftPlayerId     = null;
+  state.simpleVoteContext        = null;
 
   events.push(evt('EVAL_ROUND_DONE', {}));
   addLog(state, {
@@ -265,10 +267,9 @@ function _finalizeEval(state, events) {
 }
 
 // =====================================================
-//  "WHO'S TO BLAME?" — Fail vote + Appeal (after a FAIL)
+//  "WHO'S TO BLAME?" — Fail vote + Snitch chain
 // =====================================================
 
-// ── castFailBlameVote ─────────────────────────────────────────
 export function castFailBlameVote(state, voterId, targetId) {
   if (state.phase !== 'SIMPLE_BLAME_VOTE')
     throw new Error(`castFailBlameVote called in phase ${state.phase}`);
@@ -295,7 +296,6 @@ export function castFailBlameVote(state, voterId, targetId) {
   return events;
 }
 
-// ── leaderBreakFailTie ────────────────────────────────────────
 export function leaderBreakFailTie(state, fromId, toId) {
   if (state.phase !== 'SIMPLE_BLAME_LEADER_TIE')
     throw new Error(`leaderBreakFailTie called in phase ${state.phase}`);
@@ -314,7 +314,7 @@ export function leaderBreakFailTie(state, fromId, toId) {
     text: `${leader.name} moves a Fail card from ${from?.name ?? fromId} to ${to.name} to break the tie.`,
   });
 
-  _startAppealPhase(state, events, toId);
+  _startFailRevealPhase(state, events, toId);
   return events;
 }
 
@@ -346,129 +346,156 @@ function _resolveFailVotes(state, events) {
       text: `Tied vote! ${state.players[state.projectLeaderId].name} must move one Fail card to break the tie.`,
     });
   } else if (tied.length === 1) {
-    _startAppealPhase(state, events, tied[0]);
+    _startFailRevealPhase(state, events, tied[0]);
   } else {
-    // 0-player edge case — skip
-    state.phase = 'BREAK';
+    // 0-player edge case — skip straight to break
     applyEndOfSemesterDiscards(state, events);
     events.push(evt('FAIL_BLAME_ROUND_DONE', {}));
+    state.phase = 'BREAK';
   }
 }
 
-// Blamed player reveals their top Party card and enters SIMPLE_APPEAL.
-// Consequences are NOT applied yet — deferred until the appeal resolves
-// so we never need to undo anything.
-function _startAppealPhase(state, events, blamedId) {
+// The blame-vote winner reveals their top Party card and immediately
+// takes consequences: ALWAYS discard that card, PLUS Individual Fail
+// if they are the highest (tied-highest). They then enter the snitch
+// phase where they can try to pass the chain along.
+function _startFailRevealPhase(state, events, blamedId) {
   const blamed = state.players[blamedId];
   const card   = blamed.partyPile[blamed.partyPile.length - 1];
   if (card) card.revealed = true;
 
-  events.push(evt('FAIL_BLAMED', { blamedId, card }));
+  const active    = activePlayers(state);
+  const myVal     = _topPartyValue(blamed);
+  const maxVal    = active.length > 0
+    ? Math.max(...active.map(id => _topPartyValue(state.players[id])))
+    : myVal;
+  const isSlacker = myVal >= maxVal;
+
+  // Blamed player ALWAYS discards their top Party card
+  markTopPartyForDiscard(state, blamedId);
+
+  events.push(evt('FAIL_BLAMED', { blamedId, card, isSlacker, partyVal: myVal }));
   addLog(state, {
     type:     'fail',
-    text:     `${blamed.name} is blamed! Reveals Party card${card ? ` (${_displayVal(card)})` : ''} — may appeal.`,
+    text:     `${blamed.name} is blamed! Reveals Party card${card ? ` (${_displayVal(card)})` : ''} — discards it.`,
     playerId: blamedId,
   });
 
-  state.simpleAppealBlamedId = blamedId;
-  state.activePlayerId       = blamedId;
-  state.phase                = 'SIMPLE_APPEAL';
+  // If they ARE the slacker → also take Individual Fail
+  if (isSlacker) {
+    events.push(...applyIndividualFail(state, blamedId));
+    events.push(evt('FAIL_CONFIRMED_SLACKER', { blamedId, partyVal: myVal }));
+    addLog(state, {
+      type:     'blame',
+      text:     `${blamed.name} has the highest Party card (${myVal}) — the Slacker! Takes an Individual Fail.`,
+      playerId: blamedId,
+    });
+  }
+
+  // Enter snitch phase — blamed player holds the chain
+  state.simpleAppealBlamedId    = blamedId;
+  state.simpleSnitchCurrentId   = blamedId;
+  state.simpleSnitchedThisRound = [blamedId];
+  state.activePlayerId          = blamedId;
+  state.phase                   = 'SIMPLE_FAIL_SNITCH';
 }
 
-// ── simpleAppeal ───────────────────────────────────────────────
-// Blamed player names another player. If that player holds the highest
-// (or tied-highest) Party card, consequences transfer. Otherwise the
-// blamed player keeps their Individual Fail.
-export function simpleAppeal(state, blamedId, targetId) {
-  if (state.phase !== 'SIMPLE_APPEAL')
-    throw new Error(`simpleAppeal called in phase ${state.phase}`);
-  if (state.simpleAppealBlamedId !== blamedId)
-    throw new Error(`${blamedId} is not the blamed player`);
-  if (targetId === blamedId)
-    throw new Error('Cannot appeal to yourself');
+// ── simpleFailSnitch ──────────────────────────────────────────
+// Current chain holder names a target. If target's card is STRICTLY
+// higher, they are also caught and the chain passes to them. If not,
+// the snitcher pays a penalty (1 EC, then 1 SSO) and the chain ends.
+export function simpleFailSnitch(state, snitcherId, targetId) {
+  if (state.phase !== 'SIMPLE_FAIL_SNITCH')
+    throw new Error(`simpleFailSnitch called in phase ${state.phase}`);
+  if (state.simpleSnitchCurrentId !== snitcherId)
+    throw new Error(`${snitcherId} is not the current snitch holder`);
+  if (targetId === snitcherId)
+    throw new Error('Cannot snitch on yourself');
+  if ((state.simpleSnitchedThisRound ?? []).includes(targetId))
+    throw new Error(`${targetId} has already been caught this round`);
 
   const events     = [];
-  const blamed     = state.players[blamedId];
+  const snitcher   = state.players[snitcherId];
   const target     = state.players[targetId];
   const targetCard = target.partyPile[target.partyPile.length - 1];
   if (targetCard) targetCard.revealed = true;
 
-  const active    = activePlayers(state);
-  const targetVal = _topPartyValue(target);
-  const maxVal    = active.length > 0
-    ? Math.max(...active.map(id => _topPartyValue(state.players[id])))
-    : targetVal;
-  const isSlacker = targetVal >= maxVal;
+  const snitcherVal = _topPartyValue(snitcher);
+  const targetVal   = _topPartyValue(target);
 
-  events.push(evt('FAIL_APPEAL_REVEALED', {
-    blamedId, targetId, targetCard, targetVal, maxVal, isSlacker,
-  }));
+  addLog(state, {
+    type:     'snitch',
+    text:     `${snitcher.name} snitches on ${target.name}! Reveals Party card: ${targetVal}.`,
+    playerId: snitcherId,
+  });
 
-  if (isSlacker) {
-    // Consequences transfer to target
-    events.push(evt('FAIL_APPEAL_SUCCESS', { blamedId, targetId }));
-    events.push(...applyIndividualFail(state, targetId));
+  if (targetVal > snitcherVal) {
+    // SUCCESS — target is caught, chain continues
     markTopPartyForDiscard(state, targetId);
-    events.push(evt('FAIL_SLACKER_FOUND', { playerId: targetId, partyVal: targetVal }));
+    events.push(evt('FAIL_SNITCH_SUCCESS', { snitcherId, targetId, targetCard, targetVal }));
     addLog(state, {
       type:     'blame',
-      text:     `${target.name} has the highest Party card (${targetVal}) — APPEAL SUCCEEDS! Consequences transfer.`,
+      text:     `${target.name} (${targetVal}) > ${snitcher.name} (${snitcherVal}) — caught! Discards Party card. Chain continues.`,
       playerId: targetId,
     });
-    _endFailRound(state, events);
+    state.simpleSnitchedThisRound.push(targetId);
+    state.simpleSnitchCurrentId = targetId;
+    state.activePlayerId        = targetId;
+    // Phase stays SIMPLE_FAIL_SNITCH
   } else {
-    // Appeal fails — blamed keeps consequences
-    events.push(evt('FAIL_APPEAL_FAIL', { blamedId, targetId }));
-    events.push(...applyIndividualFail(state, blamedId));
-    markTopPartyForDiscard(state, blamedId);
+    // FAIL — snitcher pays a penalty, chain ends
+    let penalty = 'none';
+    if (snitcher.extraCredits > 0) {
+      snitcher.extraCredits -= 1;
+      penalty = 'ec';
+    } else if ((state.successfulSlackOff[snitcherId] ?? 0) > 0) {
+      state.successfulSlackOff[snitcherId] -= 1;
+      penalty = 'sso';
+    }
+    events.push(evt('FAIL_SNITCH_FAILED', { snitcherId, targetId, targetCard, targetVal, penalty }));
     addLog(state, {
       type:     'fail',
-      text:     `${target.name} (${targetVal}) is not the highest (max: ${maxVal}). Appeal fails — ${blamed.name} keeps the Individual Fail.`,
-      playerId: blamedId,
+      text:     `${target.name} (${targetVal}) is NOT higher than ${snitcher.name} (${snitcherVal}) — snitch fails! ${snitcher.name} loses ${penalty === 'ec' ? '1 Extra Credit' : penalty === 'sso' ? '1 Successful Slack Off' : 'nothing (nothing to lose)'}.`,
+      playerId: snitcherId,
     });
-    _offerFailSelfReveal(state, events);
+    _endFailRound(state, events);
   }
 
   return events;
 }
 
-// ── simpleAppealPass ───────────────────────────────────────────
-// Blamed player declines to appeal — accepts the Individual Fail.
-export function simpleAppealPass(state, blamedId) {
-  if (state.phase !== 'SIMPLE_APPEAL')
-    throw new Error(`simpleAppealPass called in phase ${state.phase}`);
-  if (state.simpleAppealBlamedId !== blamedId)
-    throw new Error(`${blamedId} is not the blamed player`);
+// ── simpleFailSnitchPass ──────────────────────────────────────
+// Chain holder declines to snitch — chain ends, no penalty.
+export function simpleFailSnitchPass(state, snitcherId) {
+  if (state.phase !== 'SIMPLE_FAIL_SNITCH')
+    throw new Error(`simpleFailSnitchPass called in phase ${state.phase}`);
+  if (state.simpleSnitchCurrentId !== snitcherId)
+    throw new Error(`${snitcherId} is not the current snitch holder`);
 
-  const events = [];
-  const blamed  = state.players[blamedId];
+  const events  = [];
+  const snitcher = state.players[snitcherId];
 
-  events.push(evt('FAIL_APPEAL_PASSED', { blamedId }));
-  events.push(...applyIndividualFail(state, blamedId));
-  markTopPartyForDiscard(state, blamedId);
+  events.push(evt('FAIL_SNITCH_PASSED', { snitcherId }));
   addLog(state, {
-    type:     'fail',
-    text:     `${blamed.name} passes on the appeal — takes the Individual Fail.`,
-    playerId: blamedId,
+    type:     'system',
+    text:     `${snitcher.name} passes — snitch chain ends.`,
+    playerId: snitcherId,
   });
-  _offerFailSelfReveal(state, events);
 
+  _endFailRound(state, events);
   return events;
 }
 
 // ── simpleSelfReveal ───────────────────────────────────────────
-// The real Slacker (highest Party card) may reveal themselves for
-// +5 Successful Slack Off points. Works for both eval context and
-// fail context (detected via simpleAppealBlamedId !== null).
+// Real Slacker reveals themselves for +5 SSO (eval/pass context only).
 export function simpleSelfReveal(state, slackerId, didReveal) {
   if (state.phase !== 'SIMPLE_SELF_REVEAL')
     throw new Error(`simpleSelfReveal called in phase ${state.phase}`);
   if (state.simpleSelfRevealPlayerId !== slackerId)
     throw new Error(`Not ${slackerId}'s self-reveal turn`);
 
-  const events        = [];
-  const slacker       = state.players[slackerId];
-  const isFailContext = state.simpleAppealBlamedId !== null;
+  const events  = [];
+  const slacker = state.players[slackerId];
 
   if (didReveal) {
     const card = slacker.partyPile[slacker.partyPile.length - 1];
@@ -477,16 +504,14 @@ export function simpleSelfReveal(state, slackerId, didReveal) {
     markTopPartyForDiscard(state, slackerId);
     state.successfulSlackOff[slackerId] = (state.successfulSlackOff[slackerId] ?? 0) + 1;
 
-    const evType = isFailContext ? 'FAIL_SELF_REVEALED' : 'EVAL_SELF_REVEALED';
-    events.push(evt(evType, { slackerId, card, partyVal }));
+    events.push(evt('EVAL_SELF_REVEALED', { slackerId, card, partyVal }));
     addLog(state, {
       type:     'snitch',
       text:     `${slacker.name} reveals themselves as the Slacker! Party card: ${partyVal}. Earns +5 Successful Slack Off.`,
       playerId: slackerId,
     });
   } else {
-    const evType = isFailContext ? 'FAIL_SELF_REVEAL_DECLINED' : 'EVAL_SELF_REVEAL_DECLINED';
-    events.push(evt(evType, { slackerId }));
+    events.push(evt('EVAL_SELF_REVEAL_DECLINED', { slackerId }));
     addLog(state, {
       type:     'system',
       text:     `${slacker.name} stays hidden.`,
@@ -494,46 +519,16 @@ export function simpleSelfReveal(state, slackerId, didReveal) {
     });
   }
 
-  if (isFailContext) {
-    _endFailRound(state, events);
-  } else {
-    _finalizeEval(state, events);
-  }
-
+  _finalizeEval(state, events);
   return events;
 }
 
-// Real Slacker (highest card, must NOT be the blamed player) may reveal.
-function _offerFailSelfReveal(state, events) {
-  const blamedId = state.simpleAppealBlamedId;
-  const active   = activePlayers(state);
-  let realSlackerId = null;
-  let maxVal = -Infinity;
-  for (const id of active) {
-    if (id === blamedId) continue;
-    const val = _topPartyValue(state.players[id]);
-    if (val > maxVal) { maxVal = val; realSlackerId = id; }
-  }
-
-  if (!realSlackerId) {
-    _endFailRound(state, events);
-    return;
-  }
-
-  state.simpleSelfRevealPlayerId = realSlackerId;
-  state.activePlayerId           = realSlackerId;
-  state.phase                    = 'SIMPLE_SELF_REVEAL';
-  events.push(evt('FAIL_SELF_REVEAL_OFFER', { realSlackerId }));
-  addLog(state, {
-    type:     'system',
-    text:     `${state.players[realSlackerId].name} may reveal themselves as the real Slacker for +5 points.`,
-    playerId: realSlackerId,
-  });
-}
-
 function _endFailRound(state, events) {
-  state.simpleAppealBlamedId     = null;
+  state.simpleAppealBlamedId    = null;
   state.simpleSelfRevealPlayerId = null;
+  state.simpleSnitchCurrentId   = null;
+  state.simpleSnitchedThisRound = [];
+  state.simpleVoteContext       = null;
   state.phase = 'BREAK';
   applyEndOfSemesterDiscards(state, events);
   events.push(evt('FAIL_BLAME_ROUND_DONE', {}));

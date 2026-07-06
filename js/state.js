@@ -196,7 +196,7 @@ function makePlayer(cfg) {
 
 // ── Simple mode constants ─────────────────────────────────
 export const SIMPLE_TOTAL_ROUNDS  = 6;
-export const SIMPLE_FAIL_LIMIT    = 3;
+export const SIMPLE_FAIL_LIMIT    = 4;
 
 export const SIMPLE_PROJECT_NAMES  = ['English','Creative Arts','Gender Studies','Philosophy','Statistica','Maths'];
 export const SIMPLE_SEMESTER_NAMES = ['ENGL 1001','ARTS 1002','GEND 1003','PHIL 2004','STAT 2005','MATH 3006'];
@@ -321,6 +321,9 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
     successfulSlackOff,
 
     extraCreditAwardedThisRound: false,
+
+    simpleVoteContext:    null,     // 'pass' | 'fail' — set when slacker vote begins
+    simpleECGiftPlayerId: null,     // player the leader gifted EC to this round
 
     log: [],
   };

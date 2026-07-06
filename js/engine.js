@@ -246,12 +246,13 @@ export function awardLeaderExtraCredit(state, { leaderId, recipientId }) {
     text: `${state.players[leaderId].name} awards Extra Credit to ${state.players[recipientId].name}.`,
   });
 
-  // Simple mode: extra credit was awarded — skip group eval, go to break
+  // Simple mode: track who received the leader's EC gift, then run Group Eval
   if (state.gameMode === 'simple') {
-    addLog(state, { type: 'system', text: 'Extra credit awarded — Group Evaluation skipped this round.' });
-    events.push(evt('GROUP_EVAL_SKIPPED', {}));
+    state.simpleECGiftPlayerId = recipientId;
+    _startGroupEval(state, events);
+  } else {
+    state.phase = 'BREAK';
   }
-  state.phase = 'BREAK';
 
   return events;
 }
@@ -312,6 +313,7 @@ function _startGroupEval(state, events) {
   state.evalAccusedId      = null;
   state.evalTiedPlayers    = [];
   state.evalVotersRemaining = [...active];
+  state.simpleVoteContext  = 'pass';
   state.phase              = 'GROUP_EVAL';
   state.activePlayerId     = active[0] ?? null;
   events.push(evt('GROUP_EVAL_START', {
@@ -336,6 +338,7 @@ function _startFailBlameVote(state, events) {
   state.failRoundCounts         = {};
   state.failTiedPlayers         = [];
   state.failVoteVotersRemaining = [...active];
+  state.simpleVoteContext       = 'fail';
   state.phase                   = 'SIMPLE_BLAME_VOTE';
   state.activePlayerId          = active[0] ?? null;
   events.push(evt('FAIL_BLAME_VOTE_START', {
@@ -423,14 +426,9 @@ function resolveOutcome(state, events) {
     }
 
     if (state.gameMode === 'simple') {
-      if (state.extraCreditAwardedThisRound) {
-        // No slacker vote when extra credit is earned
-        addLog(state, { type: 'system', text: 'Extra credit awarded — Group Evaluation skipped this round.' });
-        events.push(evt('GROUP_EVAL_SKIPPED', {}));
-        state.phase = 'BREAK';
-      } else {
-        _startGroupEval(state, events);
-      }
+      // Group Eval always runs after a pass — if EC was awarded (single-player
+      // path: no pick needed), simpleECGiftPlayerId stays null but eval still runs.
+      _startGroupEval(state, events);
     } else {
       state.phase = 'BREAK';
     }
@@ -1129,6 +1127,8 @@ export function semesterBreak(state) {
   state.simpleSnitchedThisRound    = [];
   state.simpleAppealBlamedId       = null;
   state.simpleSelfRevealPlayerId   = null;
+  state.simpleVoteContext          = null;
+  state.simpleECGiftPlayerId       = null;
 
   // Apply carry-over target penalty (Curve the Grade)
   state.targetBonus      = state.nextTargetPenalty || 0;

@@ -63,7 +63,7 @@ const PHASE_LABEL = {
   GROUP_EVAL_LEADER_TIE: 'Tie Break',
   SIMPLE_BLAME_VOTE:     "Who's to Blame?",
   SIMPLE_BLAME_LEADER_TIE: 'Tie Break',
-  SIMPLE_APPEAL:         'Appeal',
+  SIMPLE_FAIL_SNITCH:    'Snitch Chain',
   SIMPLE_SELF_REVEAL:    'Self-Reveal',
   GAMEOVER:              'Game Over',
 };
@@ -81,7 +81,7 @@ const PHASE_SUB = {
   GROUP_EVAL_LEADER_TIE: 'Tie Break',
   SIMPLE_BLAME_VOTE:     'Voting',
   SIMPLE_BLAME_LEADER_TIE: 'Tie Break',
-  SIMPLE_APPEAL:         'Appealing',
+  SIMPLE_FAIL_SNITCH:    'Snitching',
   SIMPLE_SELF_REVEAL:    'Revealing',
   GAMEOVER:              'Game Over',
 };
@@ -679,14 +679,14 @@ export function renderControlBar(state, humanId) {
       break;
     }
 
-    case 'SIMPLE_APPEAL': {
-      const appealing = state.simpleAppealBlamedId === humanId;
-      if (appealing) {
-        show('btn-continue', true, 'Appeal or accept blame…');
+    case 'SIMPLE_FAIL_SNITCH': {
+      const isHolder = state.simpleSnitchCurrentId === humanId;
+      if (isHolder) {
+        show('btn-continue', true, 'Snitch on someone or pass…');
       } else {
-        const blamed = state.simpleAppealBlamedId ? state.players[state.simpleAppealBlamedId] : null;
+        const holder = state.simpleSnitchCurrentId ? state.players[state.simpleSnitchCurrentId] : null;
         show('btn-continue', true,
-          blamed ? `Waiting for ${esc(blamed.name)}…` : 'Waiting…');
+          holder ? `Waiting for ${esc(holder.name)}…` : 'Waiting…');
       }
       break;
     }

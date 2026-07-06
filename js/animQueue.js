@@ -324,36 +324,24 @@ export function buildStepsFromEvents(events, state) {
         steps.push(_stepFailBlamed(ev, state));
         break;
 
-      case 'FAIL_APPEAL_REVEALED':
-        steps.push(_stepFailAppealRevealed(ev, state));
+      case 'FAIL_CONFIRMED_SLACKER':
+        steps.push(_stepFailConfirmedSlacker(ev, state));
         break;
 
-      case 'FAIL_APPEAL_SUCCESS':
-        steps.push(_stepFailAppealSuccess(ev, state));
+      case 'FAIL_SNITCH_SUCCESS':
+        steps.push(_stepFailSnitchSuccess(ev, state));
         break;
 
-      case 'FAIL_SLACKER_FOUND':
-        steps.push(_stepFailSlackerFound(ev, state));
+      case 'FAIL_SNITCH_FAILED':
+        steps.push(_stepFailSnitchFailed(ev, state));
         break;
 
-      case 'FAIL_APPEAL_FAIL':
-        steps.push(_stepFailAppealFail(ev, state));
+      case 'FAIL_SNITCH_PASSED':
+        steps.push(_stepFailSnitchPassed(ev, state));
         break;
 
-      case 'FAIL_APPEAL_PASSED':
-        steps.push(_stepFailAppealPassed(ev, state));
-        break;
-
-      case 'FAIL_SELF_REVEAL_OFFER':
-        steps.push(_stepFailSelfRevealOffer(ev, state));
-        break;
-
-      case 'FAIL_SELF_REVEALED':
-        steps.push(_stepFailSelfRevealed(ev, state));
-        break;
-
-      case 'FAIL_SELF_REVEAL_DECLINED':
-        steps.push(_stepFailSelfRevealDeclined(ev, state));
+      case 'EVAL_EC_REVOKED':
+        steps.push(_stepEvalECRevoked(ev, state));
         break;
 
       case 'FAIL_BLAME_ROUND_DONE':
@@ -1379,13 +1367,13 @@ function _stepSimpleFailMessage(ev, state) {
   };
 }
 
-/* FAIL_BLAMED — vote-winner reveals their Party card */
+/* FAIL_BLAMED — vote-winner reveals their Party card and always discards */
 function _stepFailBlamed(ev, state) {
   return {
     label: 'FAIL_BLAMED',
-    duration: 1100,
-    payload: { blamedId: ev.blamedId, card: ev.card, state },
-    callback({ blamedId, card, state }) {
+    duration: 1300,
+    payload: { blamedId: ev.blamedId, card: ev.card, isSlacker: ev.isSlacker, partyVal: ev.partyVal, state },
+    callback({ blamedId, card, isSlacker, partyVal, state }) {
       document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
       renderPlayersBar(state);
       renderControlBar(state, _humanId);
@@ -1394,27 +1382,61 @@ function _stepFailBlamed(ev, state) {
       if (slot && card) {
         const badge = document.createElement('div');
         badge.className = 'snitch-card-badge anim-scale-in';
-        badge.textContent = card.value === 'copy' ? 'X2' : card.value;
+        badge.textContent = card.type === 'copy' ? 'X2' : card.value;
         badge.title = `Party card: ${card.name ?? card.value}`;
         slot.appendChild(badge);
       }
-      const logEntry = state.log[state.log.length - 1];
-      if (logEntry) {
-        _showBanner('fail', logEntry.text);
-        setTimeout(() => _removeBanner(), 1000);
-      }
+      const blamed = state.players[blamedId];
+      _showBanner('fail', `${blamed?.name ?? '?'} reveals Party card (${partyVal}) — discards it!`);
+      setTimeout(() => _removeBanner(), 1200);
     },
   };
 }
 
-/* FAIL_APPEAL_REVEALED — named player reveals their Party card */
-function _stepFailAppealRevealed(ev, state) {
+/* FAIL_CONFIRMED_SLACKER — blocking popup + confetti (blamed IS the slacker) */
+function _stepFailConfirmedSlacker(ev, state) {
   return {
-    label: 'FAIL_APPEAL_REVEALED',
-    duration: 1200,
+    label: 'FAIL_CONFIRMED_SLACKER',
+    duration: 0,
+    payload: { ev, state },
+    async callback({ ev, state }) {
+      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
+      renderLog(state);
+      const slacker = state.players[ev.blamedId];
+      _launchConfetti();
+      await _showSlackerFoundModal(slacker?.name ?? '?', 'Individual Fail + discards their top Party card.');
+    },
+  };
+}
+
+/* EVAL_EC_REVOKED — leader's gift EC is taken away */
+function _stepEvalECRevoked(ev, state) {
+  return {
+    label: 'EVAL_EC_REVOKED',
+    duration: 1100,
+    payload: { ev, state },
+    callback({ ev, state }) {
+      renderPlayersBar(state);
+      renderLog(state);
+      const recipient = state.players[ev.recipientId];
+      _showBanner('fail', `${recipient?.name ?? '?'}'s Extra Credit from this round is REVOKED — the Slacker was caught!`);
+      setTimeout(() => _removeBanner(), 1000);
+    },
+  };
+}
+
+/* FAIL_SNITCH_SUCCESS — target's card revealed, chain continues */
+function _stepFailSnitchSuccess(ev, state) {
+  return {
+    label: 'FAIL_SNITCH_SUCCESS',
+    duration: 1400,
     payload: { ev, state },
     callback({ ev, state }) {
       document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderPlayersBar(state);
+      renderControlBar(state, _humanId);
       renderLog(state);
       const target = state.players[ev.targetId];
       const slot   = document.getElementById('slot-' + ev.targetId);
@@ -1425,121 +1447,53 @@ function _stepFailAppealRevealed(ev, state) {
         badge.title = `Party card: ${ev.targetCard.name ?? ev.targetCard.value}`;
         slot.appendChild(badge);
       }
-      _showBanner('snitch', `${target?.name ?? '?'} reveals Party card: ${ev.targetVal}`);
-      setTimeout(() => _removeBanner(), 1100);
+      _showBanner('blame', `SNITCH SUCCEEDS! ${target?.name ?? '?'} (${ev.targetVal}) caught — discards their card! Chain continues.`);
+      setTimeout(() => _removeBanner(), 1300);
     },
   };
 }
 
-/* FAIL_APPEAL_SUCCESS — consequences transfer */
-function _stepFailAppealSuccess(ev, state) {
+/* FAIL_SNITCH_FAILED — target's card revealed, snitcher penalised */
+function _stepFailSnitchFailed(ev, state) {
   return {
-    label: 'FAIL_APPEAL_SUCCESS',
-    duration: 1000,
-    payload: { ev, state },
-    callback({ ev, state }) {
-      renderLog(state);
-      const target = state.players[ev.targetId];
-      _showBanner('fail', `Appeal SUCCEEDS — consequences transfer to ${target?.name ?? '?'}!`);
-      setTimeout(() => _removeBanner(), 900);
-    },
-  };
-}
-
-/* FAIL_SLACKER_FOUND — blocking popup + confetti (appeal confirmed slacker) */
-function _stepFailSlackerFound(ev, state) {
-  return {
-    label: 'FAIL_SLACKER_FOUND',
-    duration: 0,
-    payload: { ev, state },
-    async callback({ ev, state }) {
-      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
-      renderPlayersBar(state);
-      renderControlBar(state, _humanId);
-      renderLog(state);
-      const slacker = state.players[ev.playerId];
-      _launchConfetti();
-      await _showSlackerFoundModal(slacker?.name ?? '?', 'Individual Fail + discards their top Party card.');
-    },
-  };
-}
-
-/* FAIL_APPEAL_FAIL — appeal fails, blamed keeps consequences */
-function _stepFailAppealFail(ev, state) {
-  return {
-    label: 'FAIL_APPEAL_FAIL',
-    duration: 1100,
+    label: 'FAIL_SNITCH_FAILED',
+    duration: 1400,
     payload: { ev, state },
     callback({ ev, state }) {
       document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
       renderPlayersBar(state);
-      renderLog(state);
-      const blamed = state.players[ev.blamedId];
-      _showBanner('fail', `Appeal fails — ${blamed?.name ?? '?'} keeps the Individual Fail.`);
-      setTimeout(() => _removeBanner(), 1000);
-    },
-  };
-}
-
-/* FAIL_APPEAL_PASSED — blamed passes on appeal */
-function _stepFailAppealPassed(ev, state) {
-  return {
-    label: 'FAIL_APPEAL_PASSED',
-    duration: 1000,
-    payload: { ev, state },
-    callback({ ev, state }) {
-      renderPlayersBar(state);
-      renderLog(state);
-      const blamed = state.players[ev.blamedId];
-      _showBanner('fail', `${blamed?.name ?? '?'} passes on the appeal — takes the Individual Fail.`);
-      setTimeout(() => _removeBanner(), 900);
-    },
-  };
-}
-
-/* FAIL_SELF_REVEAL_OFFER */
-function _stepFailSelfRevealOffer(ev, state) {
-  return {
-    label: 'FAIL_SELF_REVEAL_OFFER',
-    duration: 1000,
-    payload: { ev, state },
-    callback({ ev, state }) {
-      renderControlBar(state, _humanId);
-      renderPlayersBar(state);
-      renderLog(state);
-      _showBanner('snitch', 'The real Slacker may reveal themselves for +5 points!');
-      setTimeout(() => _removeBanner(), 900);
-    },
-  };
-}
-
-/* FAIL_SELF_REVEALED — blocking popup + confetti */
-function _stepFailSelfRevealed(ev, state) {
-  return {
-    label: 'FAIL_SELF_REVEALED',
-    duration: 0,
-    payload: { ev, state },
-    async callback({ ev, state }) {
-      renderPlayersBar(state);
       renderControlBar(state, _humanId);
       renderLog(state);
-      const slacker = state.players[ev.slackerId];
-      _launchConfetti();
-      await _showSlackerFoundModal(slacker?.name ?? '?', '+5 Successful Slack Off card earned!', 'REVEALED THEMSELVES!');
+      const target  = state.players[ev.targetId];
+      const snitcher = state.players[ev.snitcherId];
+      const slot   = document.getElementById('slot-' + ev.targetId);
+      if (slot && ev.targetCard) {
+        const badge = document.createElement('div');
+        badge.className = 'snitch-card-badge anim-scale-in';
+        badge.textContent = ev.targetCard.type === 'copy' ? 'X2' : ev.targetCard.value;
+        badge.title = `Party card: ${ev.targetCard.name ?? ev.targetCard.value}`;
+        slot.appendChild(badge);
+      }
+      const penalty = ev.penalty === 'ec' ? '−1 Extra Credit' : ev.penalty === 'sso' ? '−1 Slack Off card' : 'no penalty (nothing to lose)';
+      _showBanner('fail', `Snitch FAILS — ${target?.name ?? '?'} (${ev.targetVal}) not higher. ${snitcher?.name ?? '?'} pays: ${penalty}.`);
+      setTimeout(() => _removeBanner(), 1300);
     },
   };
 }
 
-/* FAIL_SELF_REVEAL_DECLINED */
-function _stepFailSelfRevealDeclined(ev, state) {
+/* FAIL_SNITCH_PASSED — chain holder passes, chain ends */
+function _stepFailSnitchPassed(ev, state) {
   return {
-    label: 'FAIL_SELF_REVEAL_DECLINED',
+    label: 'FAIL_SNITCH_PASSED',
     duration: 900,
     payload: { ev, state },
     callback({ ev, state }) {
+      document.querySelectorAll('.snitch-card-badge').forEach(el => el.remove());
+      renderPlayersBar(state);
       renderControlBar(state, _humanId);
       renderLog(state);
-      _showBanner('blame', 'The Slacker stays hidden.');
+      const snitcher = state.players[ev.snitcherId];
+      _showBanner('snitch', `${snitcher?.name ?? '?'} passes — snitch chain ends.`);
       setTimeout(() => _removeBanner(), 800);
     },
   };

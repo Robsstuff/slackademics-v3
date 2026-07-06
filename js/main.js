@@ -14,7 +14,7 @@ import {
 import {
   castSlackerVote, leaderBreakTie,
   castFailBlameVote, leaderBreakFailTie,
-  simpleAppeal, simpleAppealPass, simpleSelfReveal,
+  simpleFailSnitch, simpleFailSnitchPass, simpleSelfReveal,
 }                                     from './simple_engine.js';
 import { getAIAction }                from './ai.js';
 import {
@@ -205,18 +205,18 @@ function _advance() {
       return;
     }
 
-    case 'SIMPLE_APPEAL': {
-      const blamed = _state.simpleAppealBlamedId ? _state.players[_state.simpleAppealBlamedId] : null;
-      if (blamed?.isHuman) {
-        setTimeout(() => _openSimpleAppealOverlay(), _delay(400));
-      } else if (blamed) {
-        const action = getAIAction(_state, _state.simpleAppealBlamedId);
+    case 'SIMPLE_FAIL_SNITCH': {
+      const holder = _state.simpleSnitchCurrentId ? _state.players[_state.simpleSnitchCurrentId] : null;
+      if (holder?.isHuman) {
+        setTimeout(() => _openSimpleFailSnitchOverlay(), _delay(400));
+      } else if (holder) {
+        const action = getAIAction(_state, _state.simpleSnitchCurrentId);
         setTimeout(() => {
           try {
-            if (action?.type === 'SIMPLE_APPEAL') {
-              _dispatchEvents(simpleAppeal(_state, _state.simpleAppealBlamedId, action.targetId));
+            if (action?.type === 'SIMPLE_FAIL_SNITCH') {
+              _dispatchEvents(simpleFailSnitch(_state, _state.simpleSnitchCurrentId, action.targetId));
             } else {
-              _dispatchEvents(simpleAppealPass(_state, _state.simpleAppealBlamedId));
+              _dispatchEvents(simpleFailSnitchPass(_state, _state.simpleSnitchCurrentId));
             }
           } catch (e) { console.warn(e); }
         }, _delay(AI_THINK_DELAY));
@@ -263,7 +263,7 @@ function _afterQueueDrain() {
     setTimeout(() => _openBlameVoteOverlay(), _delay(150));
   }
 
-  // GROUP_EVAL / SIMPLE_BLAME_VOTE / SIMPLE_APPEAL / SIMPLE_SELF_REVEAL: overlays fire via _advance()
+  // GROUP_EVAL / SIMPLE_BLAME_VOTE / SIMPLE_FAIL_SNITCH / SIMPLE_SELF_REVEAL: overlays fire via _advance()
 
   _advance();
 }
@@ -1082,33 +1082,34 @@ function _openFailTieBreakOverlay() {
 }
 
 // ── Appeal — blamed player may name one other player ──────────
-function _openSimpleAppealOverlay() {
-  if (!_state || _state.phase !== 'SIMPLE_APPEAL') return;
-  if (_state.simpleAppealBlamedId !== _humanId) return;
-  if (document.getElementById('simple-appeal-overlay')) return;
+function _openSimpleFailSnitchOverlay() {
+  if (!_state || _state.phase !== 'SIMPLE_FAIL_SNITCH') return;
+  if (_state.simpleSnitchCurrentId !== _humanId) return;
+  if (document.getElementById('simple-snitch-overlay')) return;
 
-  const targets = activePlayers(_state).filter(id => id !== _humanId);
+  const alreadySnitched = _state.simpleSnitchedThisRound ?? [];
+  const targets = activePlayers(_state).filter(id => !alreadySnitched.includes(id));
   const myCard  = _state.players[_humanId].partyPile[_state.players[_humanId].partyPile.length - 1];
   const myVal   = myCard ? (myCard.type === 'copy' ? 'X2 Copy' : myCard.value) : '?';
 
   const overlay = document.createElement('div');
-  overlay.id = 'simple-appeal-overlay';
+  overlay.id = 'simple-snitch-overlay';
   overlay.className = 'overlay-screen active';
   overlay.innerHTML = `
     <div class="overlay-sheet slacker-vote-sheet">
-      <div class="overlay-title">You Are Blamed — Appeal?</div>
+      <div class="overlay-title">Snitch — or Pass?</div>
       <div class="slacker-vote-intro">
-        Your Party card: <strong>${_esc(String(myVal))}</strong>. You may name one
-        other player who must reveal their top Party card. If they hold the
-        highest Party card, consequences transfer to them (Individual Fail +
-        discard their card). If not, you keep the Individual Fail. Or pass
-        to accept the blame.
+        Your Party card: <strong>${_esc(String(myVal))}</strong>. Name a player
+        whose card you think is <em>strictly higher</em>. If it is, they
+        also discard and the chain passes to them. If not, you lose
+        1&nbsp;Extra&nbsp;Credit (or 1&nbsp;Slack&nbsp;Off card) as a penalty.
+        Or pass to end the chain now with no penalty.
       </div>
-      <div class="slacker-vote-grid" id="sa-grid"></div>
-      <button class="btn-t" id="sa-pass" style="margin-top:14px;">Accept Blame (no appeal)</button>
+      <div class="slacker-vote-grid" id="ss-grid"></div>
+      <button class="btn-t" id="ss-pass" style="margin-top:14px;">Pass (end chain)</button>
     </div>`;
 
-  const grid = overlay.querySelector('#sa-grid');
+  const grid = overlay.querySelector('#ss-grid');
   for (const pid of targets) {
     const p   = _state.players[pid];
     const btn = document.createElement('div');
@@ -1117,19 +1118,19 @@ function _openSimpleAppealOverlay() {
     btn.setAttribute('tabindex', '0');
     btn.innerHTML = `<div class="slacker-vote-name">${_esc(p.name)}</div>`;
 
-    const appeal = () => {
+    const snitch = () => {
       overlay.remove();
-      try { _dispatchEvents(simpleAppeal(_state, _humanId, pid)); }
+      try { _dispatchEvents(simpleFailSnitch(_state, _humanId, pid)); }
       catch (e) { console.warn(e); }
     };
-    btn.addEventListener('click', appeal);
-    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') appeal(); });
+    btn.addEventListener('click', snitch);
+    btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') snitch(); });
     grid.appendChild(btn);
   }
 
-  overlay.querySelector('#sa-pass').addEventListener('click', () => {
+  overlay.querySelector('#ss-pass').addEventListener('click', () => {
     overlay.remove();
-    try { _dispatchEvents(simpleAppealPass(_state, _humanId)); }
+    try { _dispatchEvents(simpleFailSnitchPass(_state, _humanId)); }
     catch (e) { console.warn(e); }
   });
 
