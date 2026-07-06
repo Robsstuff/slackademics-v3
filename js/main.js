@@ -915,7 +915,7 @@ function _openSlackerVoteOverlay() {
     btn.setAttribute('role', 'button');
     btn.setAttribute('tabindex', '0');
     btn.innerHTML = `
-      <img src="./cards/slacker.jpg" alt="Slacker card" class="slacker-vote-img"/>
+      <img src="./cards/voting-card.jpg" alt="Voting card" class="slacker-vote-img"/>
       <div class="slacker-vote-name">${_esc(p.name)}</div>
       <div class="slacker-vote-stats">${totalFails(p)} fail${totalFails(p) !== 1 ? 's' : ''}</div>`;
 
@@ -967,7 +967,7 @@ function _openTieBreakOverlay() {
     btn.setAttribute('role', 'button');
     btn.setAttribute('tabindex', '0');
     btn.innerHTML = `
-      <img src="./cards/slacker.jpg" alt="Slacker card" class="slacker-vote-img"/>
+      <img src="./cards/voting-card.jpg" alt="Voting card" class="slacker-vote-img"/>
       <div class="slacker-vote-name">${_esc(p.name)}</div>
       <div class="slacker-vote-stats">${_state.evalRoundCounts[pid] ?? 0} slacker cards</div>`;
 

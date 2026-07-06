@@ -1138,7 +1138,7 @@ function _stepEvalVotesRevealed(ev, state) {
         intro:   'Each Slacker card placed this round:',
         counts:  ev.counts,
         state,
-        cardImg: './cards/slacker.jpg',
+        cardImg: './cards/voting-card.jpg',
       });
     },
   };
@@ -1235,7 +1235,7 @@ function _stepEvalConfirmedSlacker(ev, state) {
       renderLog(state);
       const slacker = state.players[ev.slackerId];
       _launchConfetti();
-      await _showSlackerFoundModal(slacker?.name ?? '?', 'Discards their top Party card at round\'s end.');
+      await _showSlackerFoundModal(slacker?.name ?? '?', 'Discards their top Party card at round\'s end.', 'IS THE SLACKER!', './cards/voting-card.jpg');
     },
   };
 }
@@ -1269,7 +1269,7 @@ function _stepEvalSelfRevealed(ev, state) {
       renderLog(state);
       const slacker = state.players[ev.slackerId];
       _launchConfetti();
-      await _showSlackerFoundModal(slacker?.name ?? '?', '+5 Successful Slack Off card earned!', 'REVEALED THEMSELVES!');
+      await _showSlackerFoundModal(slacker?.name ?? '?', '+5 Successful Slack Off card earned!', 'REVEALED THEMSELVES!', './cards/successful-slack-off.jpg');
     },
   };
 }
@@ -1406,7 +1406,7 @@ function _stepFailConfirmedSlacker(ev, state) {
       renderLog(state);
       const slacker = state.players[ev.blamedId];
       _launchConfetti();
-      await _showSlackerFoundModal(slacker?.name ?? '?', 'Individual Fail + discards their top Party card.');
+      await _showSlackerFoundModal(slacker?.name ?? '?', 'Individual Fail + discards their top Party card.', 'IS THE SLACKER!', './cards/voting-card.jpg');
     },
   };
 }
@@ -1668,7 +1668,7 @@ function _showVoteResultsModal({ title, intro, counts, state, cardImg }) {
 
 // ── Blocking popup — used for confirmed slacker and self-reveal.
 // titleSuffix defaults to "IS THE SLACKER!" but can be overridden.
-function _showSlackerFoundModal(name, bodyText, titleSuffix = 'IS THE SLACKER!') {
+function _showSlackerFoundModal(name, bodyText, titleSuffix = 'IS THE SLACKER!', cardImg = './cards/voting-card.jpg') {
   return new Promise(resolve => {
     document.getElementById('slacker-found-overlay')?.remove();
 
@@ -1677,7 +1677,7 @@ function _showSlackerFoundModal(name, bodyText, titleSuffix = 'IS THE SLACKER!')
     overlay.className = 'overlay-screen active';
     overlay.innerHTML = `
       <div class="overlay-sheet slacker-found-sheet">
-        <img src="./cards/slacker.jpg" alt="Slacker" class="slacker-found-img"/>
+        <img src="${cardImg}" alt="Card" class="slacker-found-img"/>
         <div class="slacker-found-title">${_esc(name)} ${_esc(titleSuffix)}</div>
         <div class="overlay-body">${_esc(bodyText)}</div>
         <button class="btn-p" id="sf-continue">Continue</button>
