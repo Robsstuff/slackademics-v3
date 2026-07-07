@@ -257,6 +257,7 @@ function _finalizeEval(state, events) {
   state.simpleECGiftPlayerId     = null;
   state.simpleVoteContext        = null;
 
+  applyEndOfSemesterDiscards(state, events);
   events.push(evt('EVAL_ROUND_DONE', {}));
   addLog(state, {
     type: 'system',

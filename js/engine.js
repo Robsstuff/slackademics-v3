@@ -1426,7 +1426,7 @@ function _computeFinalScores(state) {
     const effects    = { cramCount, cheatCount };
     const partyScore = computePileTotal(p.partyPile, effects);
     const ecBonus    = p.extraCredits * 3;
-    const cleanBonus = p.individualFails === 0 ? p.extraCredits * 2 : 0;
+    const cleanBonus = (state.gameMode !== 'simple' && p.individualFails === 0) ? p.extraCredits * 2 : 0;
     // Each Slacker card is worth -3 points; each Successful Slack Off is +5
     const slackerPenalty = state.gameMode === 'simple'
       ? (state.slackerTokens?.[id] ?? 0) * 3

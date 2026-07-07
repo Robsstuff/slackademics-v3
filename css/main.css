@@ -1297,3 +1297,62 @@
 .slacker-token-count {
   font-size: 11px; font-weight: 700; color: var(--accent);
 }
+
+/* ── Successful Slack Off badge in player slot ─────── */
+.slot-sso {
+  display: flex; align-items: center; gap: 3px;
+  margin-top: 3px;
+}
+.sso-icon {
+  width: 18px; height: 24px; object-fit: cover;
+  border-radius: 3px; display: block;
+}
+.sso-count {
+  font-size: 11px; font-weight: 700; color: #27ae60;
+}
+
+/* ── SSO display in human player status panel ───────── */
+.sso-pile-row {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 6px;
+}
+.sso-pile-img {
+  width: 28px; height: 38px; object-fit: cover;
+  border-radius: 4px; display: block;
+  box-shadow: var(--shad-s);
+}
+.sso-pile-label {
+  font-size: 11px; font-weight: 600; color: #27ae60;
+}
+
+/* ── Party pile cards in end-game score rows ─────────── */
+.score-pile-row {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin-top: 4px;
+}
+.score-pile-card {
+  width: 26px; height: 36px;
+  border-radius: 3px; border: 2px solid var(--border);
+  background: var(--surface);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-d); font-size: 12px; font-weight: 700;
+  color: var(--fg); box-shadow: var(--shad-s);
+}
+.score-pile-card[data-value="0"],
+.score-pile-card[data-value="1"],
+.score-pile-card[data-value="2"] { border-color: #f39c12; color: #f39c12; }
+.score-pile-card[data-value="6"],
+.score-pile-card[data-value="7"],
+.score-pile-card[data-value="8"] { border-color: var(--accent); color: var(--accent); }
+.score-pile-card[data-value="X2"] { border-color: #9b59b6; color: #9b59b6; font-size: 10px; }
+.score-sso-row {
+  display: flex; align-items: center; gap: 4px;
+  margin-top: 4px;
+}
+.score-sso-img {
+  width: 22px; height: 30px; object-fit: cover;
+  border-radius: 3px; display: block;
+}
+.score-sso-row span {
+  font-size: 11px; font-weight: 700; color: #27ae60;
+}

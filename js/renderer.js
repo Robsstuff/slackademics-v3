@@ -331,6 +331,14 @@ export function renderPlayersBar(state) {
           `</div>`
         : '');
 
+    const ssoCount = state.successfulSlackOff?.[id] ?? 0;
+    if (ssoCount > 0) {
+      inner += `<div class="slot-sso" title="Successful Slack Off — +${ssoCount * 5} pts">` +
+        `<img src="./cards/successful-slack-off.jpg" alt="SSO" class="sso-icon"/>` +
+        `<span class="sso-count">×${ssoCount}</span>` +
+      `</div>`;
+    }
+
     if (p.extraCredits > 0) {
       const ecCount = Math.min(p.extraCredits, 5);
       let ecHtml = '';
@@ -801,6 +809,25 @@ export function renderScoreboard(state) {
       tagText     = _scoreTagText(p, activeRank);
     }
 
+    // Party pile card thumbnails (simple mode only, active players)
+    let pileHtml = '';
+    if (state.gameMode === 'simple' && !p.isExpelled && !isSpecialWinner) {
+      const pile = (state.players[p.id]?.partyPile ?? []);
+      if (pile.length > 0) {
+        const thumbs = pile.map(c => {
+          const val = c.type === 'copy' ? 'X2' : (c.value !== undefined ? c.value : '?');
+          return `<div class="score-pile-card" data-value="${val}">${val}</div>`;
+        }).join('');
+        pileHtml = `<div class="score-pile-row">${thumbs}</div>`;
+      }
+      const ssoN = state.successfulSlackOff?.[p.id] ?? 0;
+      if (ssoN > 0) {
+        pileHtml += `<div class="score-sso-row">` +
+          `<img src="./cards/successful-slack-off.jpg" class="score-sso-img" alt="SSO"/>` +
+          `<span>×${ssoN}</span></div>`;
+      }
+    }
+
     return (
       `<div class="${rowClass}">` +
         `<div class="s-rank">${rankDisplay}</div>` +
@@ -808,6 +835,7 @@ export function renderScoreboard(state) {
         `<div class="s-info">` +
           `<div class="s-name">${esc(p.name)}</div>` +
           `<div class="s-tag">${tagText}</div>` +
+          pileHtml +
         `</div>` +
         `<div class="s-pts">` +
           `<div class="s-pts-val">${ptsDisplay}</div>` +
@@ -872,8 +900,7 @@ function _animScoreCounter(el, from, to, duration) {
 function _scoreTagText(p, rank) {
   if (rank === 1) return 'Biggest slacker &mdash; graduated with honours! &#127891;';
   if (p.extraCredits > 0) {
-    const clean = p.individualFails === 0 ? ' (clean bonus!)' : '';
-    return `${p.extraCredits} Extra Credit${p.extraCredits > 1 ? 's' : ''}${clean}`;
+    return `${p.extraCredits} Extra Credit${p.extraCredits > 1 ? 's' : ''}`;
   }
   if (totalFails(p) >= 3) return 'Barely scraped through';
   return 'Held the group together';
@@ -908,7 +935,7 @@ export function renderPlayerStatus(state, humanId) {
   const _cheatC = (p.partyPile || []).filter(c => c.type === 'cheat').length;
   const partyScore = computePileTotal(p.partyPile || [], { cramCount: _cramC, cheatCount: _cheatC });
   const ecBonus    = (p.extraCredits || 0) * 3;
-  const cleanBonus = (p.individualFails || 0) === 0 ? (p.extraCredits || 0) * 2 : 0;
+  const cleanBonus = (state.gameMode !== 'simple' && (p.individualFails || 0) === 0) ? (p.extraCredits || 0) * 2 : 0;
   const slackerPenalty = state.gameMode === 'simple'
     ? (state.slackerTokens?.[humanId] ?? 0) * 3
     : 0;
@@ -919,10 +946,19 @@ export function renderPlayerStatus(state, humanId) {
     ? (p.academicPoints || 0)
     : Math.max(0, partyScore) + ecBonus + cleanBonus - slackerPenalty + slackOffBonus;
 
+  const ssoCount = state.gameMode === 'simple' ? (state.successfulSlackOff?.[humanId] ?? 0) : 0;
+  const ssoHtml  = ssoCount > 0
+    ? '<div class="sso-pile-row">' +
+        `<img src="./cards/successful-slack-off.jpg" alt="Successful Slack Off" class="sso-pile-img"/>` +
+        `<span class="sso-pile-label">×${ssoCount} Successful Slack Off</span>` +
+      '</div>'
+    : '';
+
   el.innerHTML =
     '<div class="status-section">' +
       '<div class="status-lbl">Your Party Pile (' + (p.partyPile ? p.partyPile.length : 0) + ')</div>' +
       '<div class="party-cards-row">' + cards + '</div>' +
+      ssoHtml +
     '</div>' +
     '<div class="status-score">' +
       '<div class="status-lbl">Your Score</div>' +
