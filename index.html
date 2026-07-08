@@ -20,67 +20,16 @@
 ═══════════════════════════════════════════ -->
 <section id="s-menu" class="screen active">
 
-  <!-- mascot SVG (built-in, no external file needed) -->
-  <div class="mascot-wrap">
-    <svg viewBox="0 0 260 168" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Slackademics mascot">
-      <ellipse cx="118" cy="158" rx="78" ry="8" fill="rgba(0,0,0,.08)"/>
-      <!-- arms holding a red solo cup -->
-      <path d="M148 118 Q180 120 206 112" stroke="#9a7548" stroke-width="18" stroke-linecap="round" fill="none"/>
-      <ellipse cx="207" cy="108" rx="13" ry="7" fill="var(--fg)" transform="rotate(-10 207 108)"/>
-      <path d="M104 122 Q72 128 48 142" stroke="#9a7548" stroke-width="18" stroke-linecap="round" fill="none"/>
-      <ellipse cx="46" cy="145" rx="14" ry="7" fill="var(--fg)" transform="rotate(20 46 145)"/>
-      <!-- body -->
-      <rect x="96" y="90" width="68" height="36" rx="14" fill="#e8e8e8"/>
-      <!-- arm + solo cup -->
-      <path d="M98 100 Q68 106 54 114" stroke="#f5c5a3" stroke-width="13" stroke-linecap="round" fill="none"/>
-      <path d="M40 100 L44 126 L60 126 L64 100 Z" fill="var(--accent)"/>
-      <rect x="38" y="98" width="28" height="7" rx="3" fill="var(--accent-dk)"/>
-      <!-- head -->
-      <ellipse cx="154" cy="73" rx="25" ry="24" fill="#f5c5a3"/>
-      <!-- grad cap -->
-      <ellipse cx="154" cy="54" rx="23" ry="14" fill="var(--fg)"/>
-      <!-- cheeks -->
-      <ellipse cx="144" cy="78" rx="5" ry="3" fill="#f9a8a8" opacity=".55"/>
-      <ellipse cx="164" cy="78" rx="5" ry="3" fill="#f9a8a8" opacity=".55"/>
-      <!-- eyes -->
-      <ellipse cx="147" cy="69" rx="3" ry="3.5" fill="var(--fg)"/>
-      <ellipse cx="162" cy="69" rx="3" ry="3.5" fill="var(--fg)"/>
-      <ellipse cx="148" cy="68" rx="1" ry="1.2" fill="#fff"/>
-      <ellipse cx="163" cy="68" rx="1" ry="1.2" fill="#fff"/>
-      <!-- smile -->
-      <path d="M146 80 Q154 87 162 80" stroke="var(--fg)" stroke-width="2" fill="none" stroke-linecap="round"/>
-      <!-- grad cap board -->
-      <polygon points="154,40 112,56 154,62 196,56" fill="var(--fg)"/>
-      <rect x="134" y="36" width="40" height="10" rx="2" fill="var(--fg)"/>
-      <line x1="196" y1="56" x2="200" y2="76" stroke="var(--fg)" stroke-width="2"/>
-      <circle cx="200" cy="79" r="4" fill="var(--fg)"/>
-    </svg>
+  <div class="box-art-wrap">
+    <img src="./cards/box-art-front.jpg" alt="Slackademics box art" class="box-art-img"/>
   </div>
 
-  <h1 class="menu-logo">Slack<span class="accent">a</span>demics</h1>
-  <p class="menu-sub">The group project simulation game.</p>
-
-  <div class="menu-btns" style="margin-top:28px;">
+  <div class="menu-btns">
     <button class="btn-p" onclick="goScreen('mode-select')">Start Game</button>
     <button class="btn-s">Join Game</button>
     <button class="btn-t">How to Play</button>
   </div>
 
-  <div class="menu-meta">
-    <span>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-        <circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h5"/>
-        <circle cx="18" cy="7" r="4"/><path d="M13 21v-2a4 4 0 0 1 4-4h1"/>
-      </svg>
-      3–8 Players
-    </span>
-    <span>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-        <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-      </svg>
-      25 Minutes
-    </span>
-  </div>
 </section>
 
 <!-- ═══════════════════════════════════════════
