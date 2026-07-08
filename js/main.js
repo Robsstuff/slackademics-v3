@@ -3,20 +3,20 @@
    ===================================================== */
 'use strict';
 
-import { createState, totalFails }   from './state.js';
+import { createState, totalFails }   from './state.js?v=3';
 import {
   playPair, revealPhase, letItRide, useLeadershipSkill,
   completeRealignSkill, accusePlayer, castVote, skipBlame,
   snitchTarget, snitchPass, semesterBreak, drawPair,
   awardLeaderExtraCredit,
   getValidActions, activePlayers, getAvailablePairKeys,
-}                                     from './engine.js';
+}                                     from './engine.js?v=3';
 import {
   castSlackerVote, leaderBreakTie,
   castFailBlameVote, leaderBreakFailTie,
   simpleFailSnitch, simpleFailSnitchPass, simpleSelfReveal,
-}                                     from './simple_engine.js';
-import { getAIAction }                from './ai.js';
+}                                     from './simple_engine.js?v=3';
+import { getAIAction }                from './ai.js?v=3';
 import {
   buildStepsFromEvents, enqueueAll,
   run        as runQueue,
@@ -24,12 +24,12 @@ import {
   setHumanId as queueSetHuman,
   setOnDone  as queueSetOnDone,
   clearQueue,
-}                                     from './animQueue.js';
+}                                     from './animQueue.js?v=3';
 import {
   renderAll, renderScoreboard, renderLog, getSelectedCardId,
   setCardClickCallback,
-}                                     from './renderer.js';
-import { sleep, uid }                 from './utils.js';
+}                                     from './renderer.js?v=3';
+import { sleep, uid }                 from './utils.js?v=3';
 
 // ── Module globals ─────────────────────────────────────────
 let _state          = null;
@@ -87,7 +87,17 @@ export function startGame(lobbyPlayers, gameMode = 'traditional', options = {}) 
 
   renderAll(_state, _humanId);
   _goScreen('game');
-  setTimeout(() => _advance(), _delay(400));
+  // Show semester 1 project card modal before gameplay starts
+  setTimeout(() => {
+    const initEv = {
+      type:          'SEMESTER_START',
+      semester:      1,
+      projectTarget: _state.projectTarget,
+      leaderId:      _state.projectLeaderId,
+      projectCard:   _state.projectCards?.[0] ?? null,
+    };
+    _dispatchEvents([initEv]);
+  }, _delay(300));
 }
 
 // ─────────────────────────────────────────────────────────

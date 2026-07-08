@@ -15,7 +15,7 @@
    ===================================================== */
 'use strict';
 
-import { sleep }                          from './utils.js';
+import { sleep }                          from './utils.js?v=3';
 import {
   renderGameHeader,
   renderProjectPile,
@@ -29,7 +29,7 @@ import {
   renderPlayerStatus,
   renderSnitchPanel,
   setSkillBonus,
-}                                          from './renderer.js';
+}                                          from './renderer.js?v=3';
 
 // ── Deterministic pile rotations (matches renderer.js) ──
 const PILE_ROTS = [-4, 3, -2, 5, -1, 2, -3, 4, -5, 1, -6, 3, 2, -4];
@@ -1091,17 +1091,50 @@ function _stepPairDrawn(ev, state) {
 function _stepSemesterStart(ev, state) {
   return {
     label: 'SEMESTER_START',
-    duration: 600,
-    payload: { state },
-    callback({ state }) {
+    duration: 0,
+    payload: { ev, state },
+    async callback({ ev, state }) {
       renderGameHeader(state);
       renderLog(state);
-      _showBanner('pass',
-        `Semester ${state.semester} — target: ${state.projectTarget}`
-      );
-      setTimeout(() => _removeBanner(), 900);
+      await _showSemesterStartModal({
+        semester:      ev.semester ?? state.semester,
+        totalSemesters: state.totalSemesters,
+        projectTarget: ev.projectTarget ?? state.projectTarget,
+        projectCard:   ev.projectCard ?? state.projectCards?.[state.semester - 1],
+        leaderName:    state.players[ev.leaderId ?? state.projectLeaderId]?.name ?? '?',
+      });
     },
   };
+}
+
+function _showSemesterStartModal({ semester, totalSemesters, projectTarget, projectCard, leaderName }) {
+  if (window._slk_anim === false) return Promise.resolve();
+  return new Promise(resolve => {
+    document.getElementById('semester-start-overlay')?.remove();
+    const imgSrc = projectCard ? `./cards/projects/${projectCard.filename}` : '';
+    const label  = totalSemesters === 6 ? `Round ${semester} of ${totalSemesters}` : `Semester ${semester} of ${totalSemesters}`;
+
+    const overlay = document.createElement('div');
+    overlay.id        = 'semester-start-overlay';
+    overlay.className = 'overlay-screen active';
+    overlay.innerHTML = `
+      <div class="overlay-sheet sem-start-sheet">
+        ${imgSrc ? `<img src="${_esc(imgSrc)}" class="sem-start-img" alt="${_esc(projectCard?.subject ?? '')}"/>` : ''}
+        <div class="sem-start-round">${_esc(label)}</div>
+        <div class="sem-start-subject">${_esc(projectCard?.subject ?? '')}</div>
+        <div class="sem-start-meta">
+          <div class="sem-start-target">Effort Required: <strong>${projectTarget}</strong></div>
+          <div class="sem-start-leader">Project Leader: <strong>${_esc(leaderName)}</strong></div>
+        </div>
+        <button class="btn-p sem-start-btn">Start!</button>
+      </div>`;
+
+    overlay.querySelector('.sem-start-btn').addEventListener('click', () => {
+      overlay.remove();
+      resolve();
+    });
+    document.body.appendChild(overlay);
+  });
 }
 
 /* GROUP_EVAL_START */

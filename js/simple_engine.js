@@ -61,11 +61,11 @@
    ===================================================== */
 'use strict';
 
-import { addLog } from './state.js';
+import { addLog } from './state.js?v=3';
 import {
   activePlayers, applyIndividualFail,
   markTopPartyForDiscard, applyEndOfSemesterDiscards,
-} from './engine.js';
+} from './engine.js?v=3';
 
 function evt(type, payload = {}) { return { type, ...payload }; }
 

@@ -29,8 +29,8 @@ import {
   addLog, getTarget, getSimpleTarget, totalFails,
   FAIL_LIMIT, TOTAL_SEMESTERS, BREAK_SEMESTERS,
   SEMESTER_NAMES, SIMPLE_SEMESTER_NAMES, POOL_PAIRS, makeCard,
-} from './state.js';
-import { shuffle } from './utils.js';
+} from './state.js?v=3';
+import { shuffle } from './utils.js?v=3';
 
 // ── Event factory ─────────────────────────────────────────
 function evt(type, payload = {}) { return { type, ...payload }; }
@@ -1097,10 +1097,11 @@ export function semesterBreak(state) {
   }
 
   const prevSem = state.semester;
-  state.semester     += 1;
-  state.semesterName  = state.gameMode === 'simple'
-    ? (SIMPLE_SEMESTER_NAMES[state.semester - 1] ?? `Round ${state.semester}`)
-    : (SEMESTER_NAMES[state.semester - 1] ?? `Semester ${state.semester}`);
+  state.semester    += 1;
+  state.semesterName = state.projectCards?.[state.semester - 1]?.subject
+    ?? (state.gameMode === 'simple'
+      ? `Round ${state.semester}`
+      : `Semester ${state.semester}`);
   state.projectPile   = [];
   state.blameAccusedId       = null;
   state.blameVotes           = {};
@@ -1176,8 +1177,10 @@ export function semesterBreak(state) {
   } else {
     state.phase = 'PLAYING';
     events.push(evt('SEMESTER_START', {
-      semester: state.semester, projectTarget: state.projectTarget,
-      leaderId: state.projectLeaderId,
+      semester:      state.semester,
+      projectTarget: state.projectTarget,
+      leaderId:      state.projectLeaderId,
+      projectCard:   state.projectCards?.[state.semester - 1] ?? null,
     }));
     addLog(state, {
       type: 'system',

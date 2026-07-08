@@ -5,7 +5,7 @@
    ===================================================== */
 'use strict';
 
-import { shuffle, uid } from './utils.js';
+import { shuffle, uid } from './utils.js?v=3';
 
 // ── Constants ─────────────────────────────────────────────
 export const FAIL_LIMIT      = 5;
@@ -194,6 +194,27 @@ function makePlayer(cfg) {
   };
 }
 
+// ── Project card deck ─────────────────────────────────────
+export const PROJECT_CARDS = [
+  { filename: 'hist101.jpg',  code: 101, subject: 'HIST 101', name: 'History' },
+  { filename: 'phil101.jpg',  code: 101, subject: 'PHIL 101', name: 'Philosophy' },
+  { filename: 'psyc102.jpg',  code: 102, subject: 'PSYC 102', name: 'Psychology' },
+  { filename: 'soc102.jpg',   code: 102, subject: 'SOC 102',  name: 'Sociology' },
+  { filename: 'econ103.jpg',  code: 103, subject: 'ECON 103', name: 'Economics' },
+  { filename: 'stat103.jpg',  code: 103, subject: 'STAT 103', name: 'Statistics' },
+  { filename: 'gend204.jpg',  code: 204, subject: 'GEND 204', name: 'Gender Studies' },
+  { filename: 'music204.jpg', code: 204, subject: 'MUSC 204', name: 'Music' },
+  { filename: 'eng305.jpg',   code: 305, subject: 'ENGL 305', name: 'English' },
+  { filename: 'mktg305.jpg',  code: 305, subject: 'MKTG 305', name: 'Marketing' },
+  { filename: 'chem401.jpg',  code: 401, subject: 'CHEM 401', name: 'Chemistry' },
+  { filename: 'math406.jpg',  code: 406, subject: 'MATH 406', name: 'Mathematics' },
+];
+
+export function pickProjectCards(n) {
+  const shuffled = shuffle([...PROJECT_CARDS]);
+  return shuffled.slice(0, n).sort((a, b) => a.code - b.code);
+}
+
 // ── Simple mode constants ─────────────────────────────────
 export const SIMPLE_TOTAL_ROUNDS  = 6;
 export const SIMPLE_FAIL_LIMIT    = 4;
@@ -245,11 +266,15 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
     successfulSlackOff[cfg.id] = 0;
   }
 
+  const totalRounds  = isSimple ? SIMPLE_TOTAL_ROUNDS : TOTAL_SEMESTERS;
+  const projectCards = pickProjectCards(totalRounds);
+
   return {
     phase:          'PLAYING',
     semester:       1,
-    totalSemesters: isSimple ? SIMPLE_TOTAL_ROUNDS : TOTAL_SEMESTERS,
-    semesterName:   isSimple ? SIMPLE_SEMESTER_NAMES[0] : SEMESTER_NAMES[0],
+    totalSemesters: totalRounds,
+    semesterName:   projectCards[0]?.subject ?? (isSimple ? SIMPLE_SEMESTER_NAMES[0] : SEMESTER_NAMES[0]),
+    projectCards,
 
     gameMode,
     failLimit: isSimple ? SIMPLE_FAIL_LIMIT : FAIL_LIMIT,
