@@ -188,12 +188,11 @@ function _revealAndCheck(state, events, votedId) {
     : myVal;
   const isSlacker = myVal >= maxVal;
 
-  // The most-voted player always discards their top Party card (they were called out)
-  markTopPartyForDiscard(state, votedId);
-
   events.push(evt('EVAL_CARD_REVEALED', { playerId: votedId, card, partyVal: myVal, maxVal, isSlacker }));
 
   if (isSlacker) {
+    // Only the confirmed slacker loses their top Party card
+    markTopPartyForDiscard(state, votedId);
     events.push(evt('EVAL_CONFIRMED_SLACKER', { slackerId: votedId, partyVal: myVal }));
     addLog(state, {
       type:     'blame',

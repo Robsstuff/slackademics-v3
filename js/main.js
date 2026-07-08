@@ -15,7 +15,7 @@ import {
   castSlackerVote, leaderBreakTie,
   castFailBlameVote, leaderBreakFailTie,
   simpleFailSnitch, simpleFailSnitchPass, simpleSelfReveal,
-}                                     from './simple_engine.js?v=3';
+}                                     from './simple_engine.js?v=4';
 import { getAIAction }                from './ai.js?v=3';
 import {
   buildStepsFromEvents, enqueueAll,
