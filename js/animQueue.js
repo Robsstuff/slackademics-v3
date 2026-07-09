@@ -15,7 +15,7 @@
    ===================================================== */
 'use strict';
 
-import { sleep }                          from './utils.js?v=3';
+import { sleep }                          from './utils.js?v=5';
 import {
   renderGameHeader,
   renderProjectPile,
@@ -29,7 +29,7 @@ import {
   renderPlayerStatus,
   renderSnitchPanel,
   setSkillBonus,
-}                                          from './renderer.js?v=3';
+}                                          from './renderer.js?v=5';
 
 // ── Deterministic pile rotations (matches renderer.js) ──
 const PILE_ROTS = [-4, 3, -2, 5, -1, 2, -3, 4, -5, 1, -6, 3, 2, -4];

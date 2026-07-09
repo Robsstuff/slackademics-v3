@@ -30,10 +30,10 @@
    ===================================================== */
 'use strict';
 
-import { pick }                                         from './utils.js?v=3';
+import { pick }                                         from './utils.js?v=5';
 import { activePlayers, getAvailablePairKeys, isValidPair, computePileTotal }
-                                                        from './engine.js?v=3';
-import { totalFails }                                   from './state.js?v=3';
+                                                        from './engine.js?v=5';
+import { totalFails }                                   from './state.js?v=5';
 
 // ── Public entry point ────────────────────────────────────
 export function getAIAction(state, playerId) {

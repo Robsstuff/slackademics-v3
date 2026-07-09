@@ -4,8 +4,8 @@
    ===================================================== */
 'use strict';
 
-import { EFFORT_IMGS, COURSE_NAMES, SEMESTER_NAMES, totalFails } from './state.js?v=3';
-import { computePileTotal, activePlayers } from './engine.js?v=3';
+import { EFFORT_IMGS, COURSE_NAMES, SEMESTER_NAMES, totalFails } from './state.js?v=5';
+import { computePileTotal, activePlayers } from './engine.js?v=5';
 
 // ── Card image base paths ─────────────────────────────────
 const EFFORT_BASE     = './cards/effort/';
@@ -227,7 +227,7 @@ export function renderGameHeader(state) {
 
   // Prominent exam name banner
   const semIdx   = Math.max(0, Math.min(state.semester - 1, 7));
-  const fullName = COURSE_NAMES[semIdx] ?? '';
+  const fullName = state.projectCards?.[state.semester - 1]?.title ?? COURSE_NAMES[semIdx] ?? '';
   const examCode  = $('exam-code');
   const examTitle = $('exam-title');
   if (examCode)  examCode.textContent  = state.semesterName ?? '';

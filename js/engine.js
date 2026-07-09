@@ -29,8 +29,8 @@ import {
   addLog, getTarget, getSimpleTarget, totalFails,
   FAIL_LIMIT, TOTAL_SEMESTERS, BREAK_SEMESTERS,
   SEMESTER_NAMES, SIMPLE_SEMESTER_NAMES, POOL_PAIRS, makeCard,
-} from './state.js?v=3';
-import { shuffle } from './utils.js?v=3';
+} from './state.js?v=5';
+import { shuffle } from './utils.js?v=5';
 
 // ── Event factory ─────────────────────────────────────────
 function evt(type, payload = {}) { return { type, ...payload }; }
@@ -1143,7 +1143,7 @@ export function semesterBreak(state) {
 
   // Update target
   state.projectTarget = state.gameMode === 'simple'
-    ? getSimpleTarget(state.semester, active.length, state.difficulty || 1)
+    ? getSimpleTarget(state.projectCards?.[state.semester - 1], active.length, state.difficulty || 1)
     : getTarget(state.semester, active.length, state.difficulty || 1);
 
   // Reset per-semester player state

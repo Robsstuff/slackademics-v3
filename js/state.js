@@ -5,7 +5,7 @@
    ===================================================== */
 'use strict';
 
-import { shuffle, uid } from './utils.js?v=3';
+import { shuffle, uid } from './utils.js?v=5';
 
 // ── Constants ─────────────────────────────────────────────
 export const FAIL_LIMIT      = 5;
@@ -196,18 +196,18 @@ function makePlayer(cfg) {
 
 // ── Project card deck ─────────────────────────────────────
 export const PROJECT_CARDS = [
-  { filename: 'hist101.jpg',  code: 101, subject: 'HIST 101', name: 'History' },
-  { filename: 'phil101.jpg',  code: 101, subject: 'PHIL 101', name: 'Philosophy' },
-  { filename: 'psyc102.jpg',  code: 102, subject: 'PSYC 102', name: 'Psychology' },
-  { filename: 'soc102.jpg',   code: 102, subject: 'SOC 102',  name: 'Sociology' },
-  { filename: 'econ103.jpg',  code: 103, subject: 'ECON 103', name: 'Economics' },
-  { filename: 'stat103.jpg',  code: 103, subject: 'STAT 103', name: 'Statistics' },
-  { filename: 'gend204.jpg',  code: 204, subject: 'GEND 204', name: 'Gender Studies' },
-  { filename: 'music204.jpg', code: 204, subject: 'MUSC 204', name: 'Music' },
-  { filename: 'eng305.jpg',   code: 305, subject: 'ENGL 305', name: 'English' },
-  { filename: 'mktg305.jpg',  code: 305, subject: 'MKTG 305', name: 'Marketing' },
-  { filename: 'chem401.jpg',  code: 401, subject: 'CHEM 401', name: 'Chemistry' },
-  { filename: 'math406.jpg',  code: 406, subject: 'MATH 406', name: 'Mathematics' },
+  { filename: 'hist101.jpg',  code: 101, subject: 'HIST 101', name: 'History',       title: 'History 101',       effort: [ 9, 13, 16, 19, 22, 25] },
+  { filename: 'phil101.jpg',  code: 101, subject: 'PHIL 101', name: 'Philosophy',    title: 'Philosophy 101',    effort: [ 9, 12, 15, 18, 21, 24] },
+  { filename: 'psyc102.jpg',  code: 102, subject: 'PSYC 102', name: 'Psychology',    title: 'Psychology 102',    effort: [11, 15, 18, 21, 26, 30] },
+  { filename: 'soc102.jpg',   code: 102, subject: 'SOC 102',  name: 'Sociology',     title: 'Sociology 102',     effort: [10, 14, 17, 20, 24, 27] },
+  { filename: 'econ103.jpg',  code: 103, subject: 'ECON 103', name: 'Economics',     title: 'Economics 103',     effort: [12, 16, 20, 24, 28, 32] },
+  { filename: 'stat103.jpg',  code: 103, subject: 'STAT 103', name: 'Statistics',    title: 'Statistics 103',    effort: [12, 16, 20, 24, 28, 32] },
+  { filename: 'gend204.jpg',  code: 204, subject: 'GEND 204', name: 'Gender Studies',title: 'Gender Studies 204',effort: [13, 17, 22, 26, 31, 34] },
+  { filename: 'music204.jpg', code: 204, subject: 'MUSC 204', name: 'Music',         title: 'Music 204',         effort: [13, 17, 21, 25, 30, 35] },
+  { filename: 'eng305.jpg',   code: 305, subject: 'ENGI 305', name: 'Engineering',   title: 'Engineering 305',   effort: [14, 19, 25, 29, 34, 38] },
+  { filename: 'mktg305.jpg',  code: 305, subject: 'MKTG 305', name: 'Marketing',     title: 'Marketing 305',     effort: [14, 18, 23, 28, 33, 36] },
+  { filename: 'chem401.jpg',  code: 401, subject: 'CHEM 401', name: 'Chemistry',     title: 'Chemistry 401',     effort: [16, 21, 26, 31, 38, 41] },
+  { filename: 'math406.jpg',  code: 406, subject: 'MATH 406', name: 'Mathematics',   title: 'Mathematics 406',   effort: [15, 20, 25, 30, 37, 40] },
 ];
 
 export function pickProjectCards(n) {
@@ -234,10 +234,10 @@ export const SIMPLE_PROJECT_TARGETS = [
 // Full hand dealt at start — 12 cards = 6 exact pairs for 6 rounds, no draws
 export const SIMPLE_STARTING_HAND_VALUES = [0, 1, 2, 3, 4, 4, 5, 6, 7, 8, 'copy', 'copy'];
 
-export function getSimpleTarget(round, activeCount, difficulty = 1) {
-  const rIdx   = Math.max(0, Math.min(round - 1, 5));
+export function getSimpleTarget(card, activeCount, difficulty = 1) {
   const plrIdx = Math.max(0, Math.min(activeCount - 3, 5));
-  return Math.ceil(SIMPLE_PROJECT_TARGETS[rIdx][plrIdx] * difficulty);
+  const base   = card?.effort?.[plrIdx] ?? 10;
+  return Math.ceil(base * difficulty);
 }
 
 // ── createState ───────────────────────────────────────────
@@ -281,7 +281,7 @@ export function createState(playerConfigs, difficulty = 1, coLeadFailMode = 'exa
 
     difficulty,
     projectTarget: isSimple
-      ? getSimpleTarget(1, activeCount, difficulty)
+      ? getSimpleTarget(projectCards[0], activeCount, difficulty)
       : getTarget(1, activeCount, difficulty),
     targetBonus:       0,
     nextTargetPenalty: 0,
