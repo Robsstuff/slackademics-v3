@@ -61,11 +61,11 @@
    ===================================================== */
 'use strict';
 
-import { addLog } from './state.js?v=5';
+import { addLog } from './state.js?v=6';
 import {
   activePlayers, applyIndividualFail,
   markTopPartyForDiscard, applyEndOfSemesterDiscards,
-} from './engine.js?v=5';
+} from './engine.js?v=6';
 
 function evt(type, payload = {}) { return { type, ...payload }; }
 
@@ -503,13 +503,13 @@ export function simpleSelfReveal(state, slackerId, didReveal) {
     const card = slacker.partyPile[slacker.partyPile.length - 1];
     if (card) card.revealed = true;
     const partyVal = _topPartyValue(slacker);
-    markTopPartyForDiscard(state, slackerId);
+    // Self-revealing earns SSO but does NOT cost the party card
     state.successfulSlackOff[slackerId] = (state.successfulSlackOff[slackerId] ?? 0) + 1;
 
     events.push(evt('EVAL_SELF_REVEALED', { slackerId, card, partyVal }));
     addLog(state, {
       type:     'snitch',
-      text:     `${slacker.name} reveals themselves as the Slacker! Party card: ${partyVal}. Earns +5 Successful Slack Off.`,
+      text:     `${slacker.name} reveals themselves as the Slacker! Party card: ${partyVal}. Earns +1 Successful Slack Off. Keeps their Party card.`,
       playerId: slackerId,
     });
   } else {

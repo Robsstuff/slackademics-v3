@@ -4,8 +4,8 @@
    ===================================================== */
 'use strict';
 
-import { EFFORT_IMGS, COURSE_NAMES, SEMESTER_NAMES, totalFails } from './state.js?v=5';
-import { computePileTotal, activePlayers } from './engine.js?v=5';
+import { EFFORT_IMGS, COURSE_NAMES, SEMESTER_NAMES, totalFails } from './state.js?v=6';
+import { computePileTotal, activePlayers } from './engine.js?v=6';
 
 // ── Card image base paths ─────────────────────────────────
 const EFFORT_BASE     = './cards/effort/';

@@ -29,8 +29,8 @@ import {
   addLog, getTarget, getSimpleTarget, totalFails,
   FAIL_LIMIT, TOTAL_SEMESTERS, BREAK_SEMESTERS,
   SEMESTER_NAMES, SIMPLE_SEMESTER_NAMES, POOL_PAIRS, makeCard,
-} from './state.js?v=5';
-import { shuffle } from './utils.js?v=5';
+} from './state.js?v=6';
+import { shuffle } from './utils.js?v=6';
 
 // ── Event factory ─────────────────────────────────────────
 function evt(type, payload = {}) { return { type, ...payload }; }

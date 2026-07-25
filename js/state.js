@@ -5,7 +5,7 @@
    ===================================================== */
 'use strict';
 
-import { shuffle, uid } from './utils.js?v=5';
+import { shuffle, uid } from './utils.js?v=6';
 
 // ── Constants ─────────────────────────────────────────────
 export const FAIL_LIMIT      = 5;

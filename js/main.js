@@ -3,20 +3,20 @@
    ===================================================== */
 'use strict';
 
-import { createState, totalFails }   from './state.js?v=5';
+import { createState, totalFails }   from './state.js?v=6';
 import {
   playPair, revealPhase, letItRide, useLeadershipSkill,
   completeRealignSkill, accusePlayer, castVote, skipBlame,
   snitchTarget, snitchPass, semesterBreak, drawPair,
   awardLeaderExtraCredit,
   getValidActions, activePlayers, getAvailablePairKeys,
-}                                     from './engine.js?v=5';
+}                                     from './engine.js?v=6';
 import {
   castSlackerVote, leaderBreakTie,
   castFailBlameVote, leaderBreakFailTie,
   simpleFailSnitch, simpleFailSnitchPass, simpleSelfReveal,
-}                                     from './simple_engine.js?v=5';
-import { getAIAction }                from './ai.js?v=5';
+}                                     from './simple_engine.js?v=6';
+import { getAIAction }                from './ai.js?v=6';
 import {
   buildStepsFromEvents, enqueueAll,
   run        as runQueue,
@@ -24,12 +24,12 @@ import {
   setHumanId as queueSetHuman,
   setOnDone  as queueSetOnDone,
   clearQueue,
-}                                     from './animQueue.js?v=5';
+}                                     from './animQueue.js?v=6';
 import {
   renderAll, renderScoreboard, renderLog, getSelectedCardId,
   setCardClickCallback,
-}                                     from './renderer.js?v=5';
-import { sleep, uid }                 from './utils.js?v=5';
+}                                     from './renderer.js?v=6';
+import { sleep, uid }                 from './utils.js?v=6';
 
 // ── Module globals ─────────────────────────────────────────
 let _state          = null;
